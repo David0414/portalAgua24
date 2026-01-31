@@ -17,7 +17,8 @@ export const OwnerUsers: React.FC = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newPass, setNewPass] = useState('');
   const [newRole, setNewRole] = useState<Role>(Role.CONDO_ADMIN);
-  const [newMachineId, setNewMachineId] = useState(''); // Nuevo estado para máquina
+  // ESTADO PARA LA MÁQUINA
+  const [newMachineId, setNewMachineId] = useState(''); 
 
   useEffect(() => {
     loadData();
@@ -37,7 +38,7 @@ export const OwnerUsers: React.FC = () => {
     setNewPhone('');
     setNewPass('');
     setNewRole(Role.CONDO_ADMIN);
-    // Pre-seleccionar la primera máquina disponible si existe
+    // Pre-seleccionar la primera máquina disponible para evitar errores
     setNewMachineId(machines.length > 0 ? machines[0].id : ''); 
     setIsFormOpen(true);
   };
@@ -64,16 +65,17 @@ export const OwnerUsers: React.FC = () => {
          throw new Error("El usuario de condominio debe ser un nombre simple (Ej: 'torre-a'), NO un correo electrónico.");
       }
 
-      // Validación de Máquina Obligatoria
+      // === VALIDACIÓN CRÍTICA DE MÁQUINA ===
+      // Si no es dueño, DEBE tener máquina asignada
       if (newRole !== Role.OWNER && !newMachineId) {
-          throw new Error("Debes asignar una máquina obligatoriamente a este usuario.");
+          throw new Error("⚠️ ERROR: Debes asignar una MÁQUINA a este usuario (Técnico o Condominio).");
       }
 
       const payload: any = {
         name: newName,
         role: newRole,
         phone: newPhone,
-        assignedMachineId: newMachineId // Enviamos la máquina
+        assignedMachineId: newMachineId // <--- AQUÍ SE ENVÍA LA MÁQUINA
       };
 
       if (newPass) {
@@ -221,18 +223,19 @@ export const OwnerUsers: React.FC = () => {
                />
             </div>
 
-            {/* Selector de Máquina OBLIGATORIO */}
-            <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            {/* === SELECTOR DE MÁQUINA OBLIGATORIO === */}
+            <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200 mt-2">
                 <label className="block text-sm font-bold text-slate-700 uppercase mb-2 flex items-center">
                     <Server className="h-4 w-4 mr-2 text-indigo-600" />
                     Máquina Asignada (Requerido)
                 </label>
+                
                 {machines.length > 0 ? (
                     <select
                         required
                         value={newMachineId}
                         onChange={(e) => setNewMachineId(e.target.value)}
-                        className="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                        className="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-slate-700"
                     >
                         <option value="">-- Seleccionar Máquina --</option>
                         {machines.map(m => (
@@ -242,12 +245,15 @@ export const OwnerUsers: React.FC = () => {
                         ))}
                     </select>
                 ) : (
-                    <p className="text-red-500 text-sm font-bold">⚠️ No hay máquinas disponibles. Crea una primero.</p>
+                    <p className="text-red-500 text-sm font-bold">
+                       ⚠️ No hay máquinas disponibles. Debes crear una en la sección "Máquinas" antes de crear usuarios.
+                    </p>
                 )}
+                
                 <p className="text-xs text-slate-500 mt-2">
                     {newRole === Role.CONDO_ADMIN 
-                        ? "Esta será la única máquina que el condominio podrá monitorear." 
-                        : "Esta será la máquina predeterminada del técnico."}
+                        ? "Esta será la máquina que verá el condominio." 
+                        : "Esta será la máquina predeterminada para el técnico."}
                 </p>
             </div>
             
@@ -278,7 +284,7 @@ export const OwnerUsers: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {users.map(u => {
-              // Buscar máquina asignada en el perfil del usuario (prioridad) o en la tabla de máquinas
+              // Buscar máquina asignada
               const userAssignedMachineId = u.assignedMachineId;
               const machine = machines.find(m => m.id === userAssignedMachineId);
 
@@ -305,12 +311,12 @@ export const OwnerUsers: React.FC = () => {
                     </span>
                   </td>
                   <td className="p-4">
-                     {/* Permitir editar máquina para AMBOS roles */}
+                     {/* Selector en línea para cambiar máquina rápidamente */}
                      {machines.length > 0 ? (
                           <div className="flex items-center space-x-2">
                             <LinkIcon className="h-4 w-4 text-slate-400" />
                             <select 
-                              className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-indigo-500 max-w-[150px]"
+                              className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-indigo-500 max-w-[150px] bg-white"
                               value={u.assignedMachineId || ""}
                               onChange={(e) => handleAssignMachine(u.id, e.target.value)}
                             >
