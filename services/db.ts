@@ -55,7 +55,18 @@ export const api = {
         });
 
         if (error) {
-            console.error("Error de Supabase Auth:", error.message);
+            console.error("Error de Supabase Auth:", error);
+            
+            // Detección específica de error de configuración
+            if (error.message && (error.message.includes("Invalid API key") || error.status === 401)) {
+                alert("⚠️ ERROR DE CONFIGURACIÓN\n\nLa 'API Key' de Supabase es inválida o no ha sido configurada.\n\nPor favor edita el archivo 'services/supabaseClient.ts' y coloca tus claves reales.");
+            } else if (error.message.includes("Invalid login credentials")) {
+                // Credenciales normales incorrectas, no alertamos, dejamos que la UI lo maneje
+                console.warn("Credenciales incorrectas");
+            } else {
+                alert(`Error de conexión: ${error.message}`);
+            }
+            
             return null;
         }
 
@@ -67,7 +78,10 @@ export const api = {
             .eq('id', data.user.id)
             .single();
 
-        if (profileError) return null; 
+        if (profileError) {
+             console.error("Error obteniendo perfil:", profileError);
+             return null; 
+        }
             
         return profile as User;
 
@@ -95,7 +109,7 @@ export const api = {
     }
   },
 
-  createUser: async (user: Omit<User, 'id'> & { password: string }): Promise<User> => {
+  createUser: async (user: Omit<User, 'id'> & { password: string, assignedMachineId?: string }): Promise<User> => {
     if (USE_SUPABASE) {
         let finalEmail = user.email;
         // Logic de nombres: si es condominio y nos mandan un 'username' simple, construimos el email falso
@@ -105,21 +119,31 @@ export const api = {
         
         if (!finalEmail) throw new Error("Se requiere email o usuario");
 
-        console.log("Creando usuario:", finalEmail, "Tel:", user.phone);
+        console.log("Creando usuario:", finalEmail, "Tel:", user.phone, "Máquina:", user.assignedMachineId);
 
-        // Pasamos el teléfono al RPC
+        // 1. Crear usuario Auth y Perfil básico mediante RPC
         const { data: newId, error } = await supabase.rpc('create_new_user', {
             email_input: finalEmail,
             password_input: user.password,
             name_input: user.name,
             role_input: user.role,
             username_input: user.username || null,
-            phone_input: user.phone || null // Nuevo parámetro
+            phone_input: user.phone || null 
         });
 
         if (error) {
             console.error("Error RPC:", error);
             throw new Error(error.message);
+        }
+
+        // 2. Si se asignó una máquina, actualizar el perfil inmediatamente
+        if (user.assignedMachineId) {
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ assignedMachineId: user.assignedMachineId })
+                .eq('id', newId);
+            
+            if (updateError) console.error("Error asignando máquina post-creación:", updateError);
         }
 
         return {
@@ -128,7 +152,8 @@ export const api = {
             username: user.username,
             name: user.name,
             role: user.role,
-            phone: user.phone
+            phone: user.phone,
+            assignedMachineId: user.assignedMachineId
         };
 
     } else {
@@ -148,6 +173,11 @@ export const api = {
   updateUser: async (id: string, updates: Partial<User & { password?: string }>): Promise<User> => {
     if (USE_SUPABASE) {
         const { password, ...profileUpdates } = updates;
+        // La tabla profiles debe tener assignedMachineId (o snake_case assigned_machine_id si el mapping es automático)
+        // Nota: Supabase JS client suele hacer auto-mapping si las columnas coinciden o si se configura.
+        // Asumimos que la columna en DB es "assignedMachineId" (entre comillas) o el JS lo maneja. 
+        // En el script SQL la definimos como "assignedMachineId" (con comillas) o text.
+        
         const { data, error } = await supabase.from('profiles').update(profileUpdates).eq('id', id).select().single();
         if(error) throw error;
         return data as User;
@@ -222,10 +252,13 @@ export const api = {
 
   assignMachineToUser: async (machineId: string, userId: string | null): Promise<void> => {
     if (USE_SUPABASE) {
-        await supabase.from('machines').update({ assignedToUserId: userId }).eq('id', machineId);
+        // En este modelo, asignamos la máquina al perfil del usuario.
         if (userId) {
             await supabase.from('profiles').update({ assignedMachineId: machineId }).eq('id', userId);
         }
+        // Opcional: Actualizar la tabla machines si queremos tracking inverso, 
+        // pero la fuente de verdad es el perfil para el login.
+        await supabase.from('machines').update({ assignedToUserId: userId }).eq('id', machineId);
     } else {
         const db = getDb();
         const mIndex = db.machines.findIndex((m: Machine) => m.id === machineId);

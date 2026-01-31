@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { User, Role, Machine } from '../types';
-import { ArrowLeft, Plus, UserPlus, Link as LinkIcon, Trash2, Mail, User as UserIcon, Edit2, Phone, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, UserPlus, Link as LinkIcon, Trash2, Mail, User as UserIcon, Edit2, Phone, AlertCircle, Server } from 'lucide-react';
 
 export const OwnerUsers: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export const OwnerUsers: React.FC = () => {
   const [newPhone, setNewPhone] = useState('');
   const [newPass, setNewPass] = useState('');
   const [newRole, setNewRole] = useState<Role>(Role.CONDO_ADMIN);
+  const [newMachineId, setNewMachineId] = useState(''); // Nuevo estado para máquina
 
   useEffect(() => {
     loadData();
@@ -36,6 +37,8 @@ export const OwnerUsers: React.FC = () => {
     setNewPhone('');
     setNewPass('');
     setNewRole(Role.CONDO_ADMIN);
+    // Pre-seleccionar la primera máquina disponible si existe
+    setNewMachineId(machines.length > 0 ? machines[0].id : ''); 
     setIsFormOpen(true);
   };
 
@@ -46,6 +49,7 @@ export const OwnerUsers: React.FC = () => {
     setNewPhone(u.phone || '');
     setNewPass(''); 
     setNewRole(u.role);
+    setNewMachineId(u.assignedMachineId || '');
     setIsFormOpen(true);
   };
 
@@ -55,15 +59,21 @@ export const OwnerUsers: React.FC = () => {
       // Validaciones
       if (!newPhone || newPhone.length < 10) throw new Error("El número de WhatsApp es obligatorio (mínimo 10 dígitos).");
       
-      // Validación estricta para usuario de condominio (evitar emails dobles)
+      // Validación estricta para usuario de condominio
       if (newRole === Role.CONDO_ADMIN && newIdentifier.includes('@')) {
          throw new Error("El usuario de condominio debe ser un nombre simple (Ej: 'torre-a'), NO un correo electrónico.");
+      }
+
+      // Validación de Máquina Obligatoria
+      if (newRole !== Role.OWNER && !newMachineId) {
+          throw new Error("Debes asignar una máquina obligatoriamente a este usuario.");
       }
 
       const payload: any = {
         name: newName,
         role: newRole,
-        phone: newPhone
+        phone: newPhone,
+        assignedMachineId: newMachineId // Enviamos la máquina
       };
 
       if (newPass) {
@@ -135,7 +145,7 @@ export const OwnerUsers: React.FC = () => {
               <AlertCircle className="text-amber-600 h-5 w-5 mt-0.5" />
               <div>
                   <h4 className="font-bold text-amber-800">No hay máquinas registradas</h4>
-                  <p className="text-sm text-amber-700">Para asignar un condominio, primero debes <span className="underline cursor-pointer font-bold" onClick={() => navigate('/owner/machines')}>registrar una máquina</span>.</p>
+                  <p className="text-sm text-amber-700">Para crear usuarios operativos, primero debes <span className="underline cursor-pointer font-bold" onClick={() => navigate('/owner/machines')}>registrar una máquina</span>.</p>
               </div>
           </div>
       )}
@@ -197,9 +207,6 @@ export const OwnerUsers: React.FC = () => {
                      className="w-full border p-2 pl-8 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                </div>
-               {newRole === Role.CONDO_ADMIN && (
-                   <p className="text-[10px] text-slate-400 mt-1">El sistema usará este nombre para entrar. No uses formato de correo.</p>
-               )}
             </div>
 
             <div>
@@ -213,10 +220,44 @@ export const OwnerUsers: React.FC = () => {
                   required={!editingId}
                />
             </div>
+
+            {/* Selector de Máquina OBLIGATORIO */}
+            <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <label className="block text-sm font-bold text-slate-700 uppercase mb-2 flex items-center">
+                    <Server className="h-4 w-4 mr-2 text-indigo-600" />
+                    Máquina Asignada (Requerido)
+                </label>
+                {machines.length > 0 ? (
+                    <select
+                        required
+                        value={newMachineId}
+                        onChange={(e) => setNewMachineId(e.target.value)}
+                        className="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                    >
+                        <option value="">-- Seleccionar Máquina --</option>
+                        {machines.map(m => (
+                            <option key={m.id} value={m.id}>
+                                {m.id} - {m.location}
+                            </option>
+                        ))}
+                    </select>
+                ) : (
+                    <p className="text-red-500 text-sm font-bold">⚠️ No hay máquinas disponibles. Crea una primero.</p>
+                )}
+                <p className="text-xs text-slate-500 mt-2">
+                    {newRole === Role.CONDO_ADMIN 
+                        ? "Esta será la única máquina que el condominio podrá monitorear." 
+                        : "Esta será la máquina predeterminada del técnico."}
+                </p>
+            </div>
             
             <div className="md:col-span-2 flex justify-end space-x-2 mt-4 pt-4 border-t border-slate-100">
               <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50">Cancelar</button>
-              <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700">
+              <button 
+                type="submit" 
+                className="px-6 py-2 bg-indigo-600 text-white rounded font-bold hover:bg-indigo-700 disabled:opacity-50"
+                disabled={machines.length === 0}
+              >
                 {editingId ? 'Actualizar Usuario' : 'Crear Usuario'}
               </button>
             </div>
@@ -237,7 +278,10 @@ export const OwnerUsers: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {users.map(u => {
-              const assignedMachine = machines.find(m => m.assignedToUserId === u.id);
+              // Buscar máquina asignada en el perfil del usuario (prioridad) o en la tabla de máquinas
+              const userAssignedMachineId = u.assignedMachineId;
+              const machine = machines.find(m => m.id === userAssignedMachineId);
+
               return (
                 <tr key={u.id} className="hover:bg-slate-50">
                   <td className="p-4">
@@ -261,13 +305,13 @@ export const OwnerUsers: React.FC = () => {
                     </span>
                   </td>
                   <td className="p-4">
-                    {u.role === Role.CONDO_ADMIN ? (
-                      machines.length > 0 ? (
+                     {/* Permitir editar máquina para AMBOS roles */}
+                     {machines.length > 0 ? (
                           <div className="flex items-center space-x-2">
                             <LinkIcon className="h-4 w-4 text-slate-400" />
                             <select 
                               className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-indigo-500 max-w-[150px]"
-                              value={assignedMachine?.id || ""}
+                              value={u.assignedMachineId || ""}
                               onChange={(e) => handleAssignMachine(u.id, e.target.value)}
                             >
                               <option value="">-- Sin Asignar --</option>
@@ -280,10 +324,7 @@ export const OwnerUsers: React.FC = () => {
                           </div>
                       ) : (
                           <span className="text-red-400 text-xs font-bold cursor-pointer" onClick={() => navigate('/owner/machines')}>Crear Máquina +</span>
-                      )
-                    ) : (
-                      <span className="text-slate-400 text-sm">-</span>
-                    )}
+                      )}
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end space-x-2">
