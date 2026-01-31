@@ -57,8 +57,12 @@ export const api = {
         if (error) {
             console.error("Error de Supabase Auth:", error);
             
+            // Detección de error de base de datos (Error 500)
+            if (error.message && error.message.includes("Database error")) {
+                 alert("⚠️ ERROR CRÍTICO DE BASE DE DATOS\n\nEl sistema de login de Supabase falló (Error 500).\nEsto ocurre porque la función de creación de usuarios está obsoleta.\n\nSOLUCIÓN:\n1. Ve al SQL Editor en Supabase.\n2. Ejecuta el script 'REPARAR_LOGIN.sql'.\n3. Borra este usuario y créalo de nuevo.");
+            }
             // Detección específica de error de configuración
-            if (error.message && (error.message.includes("Invalid API key") || error.status === 401)) {
+            else if (error.message && (error.message.includes("Invalid API key") || error.status === 401)) {
                 alert("⚠️ ERROR DE CONFIGURACIÓN\n\nLa 'API Key' de Supabase es inválida o no ha sido configurada.\n\nPor favor edita el archivo 'services/supabaseClient.ts' y coloca tus claves reales.");
             } else if (error.message.includes("Invalid login credentials")) {
                 // Credenciales normales incorrectas, no alertamos, dejamos que la UI lo maneje
