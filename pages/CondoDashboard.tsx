@@ -17,7 +17,7 @@ export const CondoDashboard: React.FC = () => {
 
   useEffect(() => {
     const fetch = async () => {
-      // 1. Identify which machine this user is assigned to
+      // 1. Refresh user info from DB to ensure we have the latest Machine Assignment
       const dbUsers = await api.getUsers();
       const freshUser = dbUsers.find(u => u.id === user?.id);
       
@@ -35,7 +35,7 @@ export const CondoDashboard: React.FC = () => {
 
       const allReports = await api.getAllReports();
       
-      // 2. Filter reports for assigned machine
+      // 2. Filter reports: Match Machine ID AND ensure they are APPROVED
       const machineReports = allReports
         .filter(r => r.machineId === machineId && r.status === ReportStatus.APPROVED)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -43,14 +43,12 @@ export const CondoDashboard: React.FC = () => {
       setHistory(machineReports);
       setLatestReport(machineReports[0] || null);
 
-      // 3. Prepare Chart Data (Using Output Values: w9 = TDS Final, w5 = PH Final)
+      // 3. Prepare Chart Data
       const graphData = machineReports.slice(0, 10).reverse().map(r => {
         const tds = r.data.find(i => i.itemId === 'w9')?.value || 0;
-        const ph = r.data.find(i => i.itemId === 'w5')?.value || 0;
         return {
           date: format(new Date(r.createdAt), 'dd/MM'),
           tds: Number(tds),
-          ph: Number(ph),
         };
       });
       setChartData(graphData);
@@ -72,12 +70,12 @@ export const CondoDashboard: React.FC = () => {
 
   if (!machineInfo) {
     return (
-      <div className="text-center p-10 bg-white rounded-xl shadow">
+      <div className="text-center p-10 bg-white rounded-xl shadow border border-slate-100 mt-10 max-w-lg mx-auto">
         <Info className="h-12 w-12 text-slate-400 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-slate-800">Sin Máquina Asignada</h2>
         <p className="text-slate-500 mt-2">Tu cuenta aún no ha sido vinculada a una purificadora.</p>
-        <p className="text-slate-500">Contacta al propietario para obtener acceso.</p>
-        <button onClick={logout} className="mt-6 text-teal-600 font-bold hover:underline">Cerrar Sesión</button>
+        <p className="text-slate-500 mb-6">Contacta al propietario para obtener acceso.</p>
+        <button onClick={logout} className="px-6 py-2 border border-teal-600 text-teal-600 rounded-lg font-bold hover:bg-teal-50 transition">Cerrar Sesión</button>
       </div>
     );
   }
@@ -92,7 +90,7 @@ export const CondoDashboard: React.FC = () => {
             Sistema de Purificación Central | ID: <span className="font-mono font-bold text-teal-600">{machineInfo.id}</span>
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-2 mt-4 md:mt-0">
            <div className="flex items-center space-x-2 bg-green-50 text-green-700 px-4 py-2 rounded-full border border-green-100">
              <span className="relative flex h-3 w-3">
                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -100,9 +98,6 @@ export const CondoDashboard: React.FC = () => {
              </span>
              <span className="font-bold text-sm">Sistema Operativo</span>
            </div>
-           <button onClick={logout} className="text-xs text-slate-400 hover:text-red-500 flex items-center">
-             <LogOut className="h-3 w-3 mr-1" /> Cerrar Sesión
-           </button>
         </div>
       </div>
 
@@ -115,9 +110,6 @@ export const CondoDashboard: React.FC = () => {
               <Activity className="mr-2 text-teal-500 h-5 w-5" />
               Tendencia de Pureza (TDS Salida)
             </h2>
-            <div className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">
-              Últimas semanas
-            </div>
           </div>
           
           <div className="h-[300px] w-full">
@@ -135,20 +127,19 @@ export const CondoDashboard: React.FC = () => {
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
                   <Tooltip 
                     contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                    labelStyle={{color: '#64748b', marginBottom: '4px'}}
                   />
                   <Area type="monotone" dataKey="tds" name="TDS (ppm)" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#colorTds)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400">
-                Faltan datos para generar la gráfica.
+              <div className="h-full flex items-center justify-center text-slate-400 bg-slate-50 rounded-lg">
+                <p>No hay reportes validados aún.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Current Metrics Cards - ONLY OUTPUT VALUES */}
+        {/* Current Metrics Cards */}
         <div className="space-y-6">
            {/* TDS CARD */}
            <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
@@ -159,12 +150,12 @@ export const CondoDashboard: React.FC = () => {
                  <span className="text-lg opacity-80">ppm</span>
               </div>
               <div className="mt-4 pt-4 border-t border-white/20 flex justify-between items-center text-sm">
-                 <span>Calidad:</span>
-                 <span className="bg-white/20 px-2 py-0.5 rounded font-bold">Excelente</span>
+                 <span>Última Medición:</span>
+                 <span className="font-mono">{latestReport ? format(new Date(latestReport.createdAt), 'dd/MM') : '--'}</span>
               </div>
            </div>
 
-           {/* Chemical Params - OUTPUT ONLY */}
+           {/* Chemical Params */}
            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <h3 className="text-slate-500 font-bold text-sm uppercase mb-4">Calidad del Agua (Salida)</h3>
               <div className="space-y-4">
@@ -209,6 +200,11 @@ export const CondoDashboard: React.FC = () => {
                         <td className="px-6 py-4"><span className="text-green-600 font-bold flex items-center"><CheckCircle className="w-3 h-3 mr-1"/> Validado</span></td>
                      </tr>
                   ))}
+                  {history.length === 0 && (
+                      <tr>
+                          <td colSpan={3} className="p-6 text-center text-slate-400">No hay historial disponible.</td>
+                      </tr>
+                  )}
                </tbody>
             </table>
          </div>

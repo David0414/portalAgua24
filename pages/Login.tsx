@@ -1,20 +1,39 @@
-import React, { useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Droplets, Lock, ArrowRight, User as UserIcon, Building, Wrench, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { Role } from '../types';
 
 export const Login: React.FC = () => {
   const { roleType } = useParams<{ roleType: string }>();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
-  const [identifier, setIdentifier] = useState(''); // Can be email or username
+  const [identifier, setIdentifier] = useState(''); 
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Configuration based on Role
+  // If already logged in, redirect immediately (checking state first)
+  useEffect(() => {
+    if (user) {
+       const origin = (location.state as any)?.from?.pathname || getDefaultPath(user.role);
+       const search = (location.state as any)?.from?.search || "";
+       navigate(origin + search, { replace: true });
+    }
+  }, [user, navigate, location]);
+
+  const getDefaultPath = (role: Role) => {
+    switch (role) {
+        case Role.OWNER: return '/owner/dashboard';
+        case Role.CONDO_ADMIN: return '/condo/dashboard';
+        case Role.TECHNICIAN: return '/tech/scan';
+        default: return '/';
+    }
+  };
+
+  // UI Configuration
   let title = "Ingreso";
   let colorClass = "bg-brand-600";
   let icon = <Droplets className="h-8 w-8 text-white" />;
@@ -34,7 +53,7 @@ export const Login: React.FC = () => {
     title = "Portal Condominio";
     colorClass = "bg-teal-600";
     icon = <Building className="h-8 w-8 text-white" />;
-    labelIdentifier = "Usuario de Torre/Edificio"; // Username label
+    labelIdentifier = "Usuario de Torre/Edificio"; 
     placeholderId = "ej. torre-a";
     inputType = "text";
   }
@@ -48,11 +67,7 @@ export const Login: React.FC = () => {
     setLoading(false);
 
     if (success) {
-      // Logic handled in AuthContext/Home redirect or force here
-      const u = JSON.parse(localStorage.getItem('aquacheck_user') || '{}');
-      if (u.role === Role.OWNER) navigate('/owner/dashboard');
-      else if (u.role === Role.CONDO_ADMIN) navigate('/condo/dashboard');
-      else if (u.role === Role.TECHNICIAN) navigate('/tech/scan');
+      // Navigation is handled by the useEffect above reacting to user state change
     } else {
       setError('Credenciales incorrectas. Verifique sus datos.');
     }

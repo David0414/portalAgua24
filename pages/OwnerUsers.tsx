@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { User, Role, Machine } from '../types';
-import { ArrowLeft, Plus, UserPlus, Link as LinkIcon, Trash2, Mail, User as UserIcon, Edit2 } from 'lucide-react';
+import { ArrowLeft, Plus, UserPlus, Link as LinkIcon, Trash2, Mail, User as UserIcon, Edit2, Phone, AlertCircle } from 'lucide-react';
 
 export const OwnerUsers: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export const OwnerUsers: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newIdentifier, setNewIdentifier] = useState(''); // Email or Username
+  const [newPhone, setNewPhone] = useState('');
   const [newPass, setNewPass] = useState('');
   const [newRole, setNewRole] = useState<Role>(Role.CONDO_ADMIN);
 
@@ -24,8 +25,6 @@ export const OwnerUsers: React.FC = () => {
   const loadData = async () => {
     const u = await api.getUsers();
     const m = await api.getMachines();
-    // FILTRO: Excluir a los Propietarios de la lista de gestión.
-    // Solo mostramos Técnicos y Administradores de Condominio.
     setUsers(u.filter(user => user.role !== Role.OWNER));
     setMachines(m);
   };
@@ -34,6 +33,7 @@ export const OwnerUsers: React.FC = () => {
     setEditingId(null);
     setNewName('');
     setNewIdentifier('');
+    setNewPhone('');
     setNewPass('');
     setNewRole(Role.CONDO_ADMIN);
     setIsFormOpen(true);
@@ -43,7 +43,8 @@ export const OwnerUsers: React.FC = () => {
     setEditingId(u.id);
     setNewName(u.name);
     setNewIdentifier(u.role === Role.CONDO_ADMIN ? (u.username || '') : (u.email || ''));
-    setNewPass(''); // Don't show old password, only allow reset
+    setNewPhone(u.phone || '');
+    setNewPass(''); 
     setNewRole(u.role);
     setIsFormOpen(true);
   };
@@ -51,9 +52,18 @@ export const OwnerUsers: React.FC = () => {
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Validaciones
+      if (!newPhone || newPhone.length < 10) throw new Error("El número de WhatsApp es obligatorio (mínimo 10 dígitos).");
+      
+      // Validación estricta para usuario de condominio (evitar emails dobles)
+      if (newRole === Role.CONDO_ADMIN && newIdentifier.includes('@')) {
+         throw new Error("El usuario de condominio debe ser un nombre simple (Ej: 'torre-a'), NO un correo electrónico.");
+      }
+
       const payload: any = {
         name: newName,
-        role: newRole
+        role: newRole,
+        phone: newPhone
       };
 
       if (newPass) {
@@ -61,10 +71,10 @@ export const OwnerUsers: React.FC = () => {
       }
 
       if (newRole === Role.CONDO_ADMIN) {
-        payload.username = newIdentifier;
-        payload.email = undefined; // Clear email if switching types
+        payload.username = newIdentifier.trim();
+        payload.email = undefined; 
       } else {
-        payload.email = newIdentifier;
+        payload.email = newIdentifier.trim();
         payload.username = undefined;
       }
 
@@ -84,11 +94,6 @@ export const OwnerUsers: React.FC = () => {
   };
 
   const handleDelete = async (u: User) => {
-    // Doble seguridad, aunque no deberían aparecer en la lista
-    if (u.role === Role.OWNER) {
-      alert("No se puede eliminar al propietario.");
-      return;
-    }
     if (confirm(`¿Estás seguro de eliminar a ${u.name}?`)) {
       await api.deleteUser(u.id);
       loadData();
@@ -96,6 +101,12 @@ export const OwnerUsers: React.FC = () => {
   };
 
   const handleAssignMachine = async (userId: string, machineId: string) => {
+    if (machines.length === 0) {
+        if(confirm("No existen máquinas registradas. ¿Deseas crear una ahora?")) {
+            navigate('/owner/machines');
+        }
+        return;
+    }
     await api.assignMachineToUser(machineId, machineId === "" ? null : userId);
     loadData();
   };
@@ -119,6 +130,16 @@ export const OwnerUsers: React.FC = () => {
         </button>
       </div>
 
+      {machines.length === 0 && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-start space-x-3">
+              <AlertCircle className="text-amber-600 h-5 w-5 mt-0.5" />
+              <div>
+                  <h4 className="font-bold text-amber-800">No hay máquinas registradas</h4>
+                  <p className="text-sm text-amber-700">Para asignar un condominio, primero debes <span className="underline cursor-pointer font-bold" onClick={() => navigate('/owner/machines')}>registrar una máquina</span>.</p>
+              </div>
+          </div>
+      )}
+
       {isFormOpen && (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-indigo-100 animate-in fade-in slide-in-from-top-4">
           <h3 className="font-bold text-lg mb-4 text-indigo-900 flex items-center">
@@ -134,7 +155,7 @@ export const OwnerUsers: React.FC = () => {
                    </label>
                    <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition ${newRole === Role.TECHNICIAN ? 'bg-brand-50 border-brand-200' : 'bg-slate-50 hover:bg-slate-100'}`}>
                       <input type="radio" name="role" checked={newRole === Role.TECHNICIAN} onChange={() => setNewRole(Role.TECHNICIAN)} className="mr-2"/>
-                      <span className="text-sm font-bold text-slate-700">Técnico (Requiere Email)</span>
+                      <span className="text-sm font-bold text-slate-700">Técnico (Email)</span>
                    </label>
                 </div>
              </div>
@@ -150,7 +171,22 @@ export const OwnerUsers: React.FC = () => {
 
             <div>
                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                  {newRole === Role.CONDO_ADMIN ? 'Usuario de Acceso' : 'Correo Electrónico'}
+                 Teléfono WhatsApp (Obligatorio)
+               </label>
+               <div className="relative">
+                  <Phone className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                  <input 
+                     required type="tel"
+                     placeholder="Ej: 5215555555555"
+                     value={newPhone} onChange={e => setNewPhone(e.target.value)}
+                     className="w-full border p-2 pl-8 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+               </div>
+            </div>
+
+            <div>
+               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                  {newRole === Role.CONDO_ADMIN ? 'Usuario de Acceso (SIN @)' : 'Correo Electrónico'}
                </label>
                <div className="relative">
                   {newRole === Role.CONDO_ADMIN ? <UserIcon className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" /> : <Mail className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />}
@@ -161,6 +197,9 @@ export const OwnerUsers: React.FC = () => {
                      className="w-full border p-2 pl-8 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                </div>
+               {newRole === Role.CONDO_ADMIN && (
+                   <p className="text-[10px] text-slate-400 mt-1">El sistema usará este nombre para entrar. No uses formato de correo.</p>
+               )}
             </div>
 
             <div>
@@ -190,7 +229,7 @@ export const OwnerUsers: React.FC = () => {
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
               <th className="p-4">Usuario</th>
-              <th className="p-4">Credencial</th>
+              <th className="p-4">Contacto</th>
               <th className="p-4">Rol</th>
               <th className="p-4">Máquina Asignada</th>
               <th className="p-4 text-right">Acciones</th>
@@ -202,16 +241,16 @@ export const OwnerUsers: React.FC = () => {
               return (
                 <tr key={u.id} className="hover:bg-slate-50">
                   <td className="p-4">
-                    <p className="font-bold text-slate-800 flex items-center">
-                      {u.name}
+                    <p className="font-bold text-slate-800">{u.name}</p>
+                    <p className="text-xs text-slate-500 font-mono">
+                         {u.role === Role.CONDO_ADMIN ? u.username : u.email}
                     </p>
                   </td>
-                  <td className="p-4 text-sm text-slate-600 font-mono">
-                     {u.role === Role.CONDO_ADMIN ? (
-                        <span className="bg-slate-100 px-2 py-1 rounded border border-slate-200">{u.username}</span>
-                     ) : (
-                        u.email
-                     )}
+                  <td className="p-4 text-sm text-slate-600">
+                     <div className="flex items-center text-xs bg-slate-100 px-2 py-1 rounded w-fit">
+                        <Phone className="h-3 w-3 mr-1 text-slate-400" />
+                        {u.phone || 'Sin tel'}
+                     </div>
                   </td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -223,21 +262,25 @@ export const OwnerUsers: React.FC = () => {
                   </td>
                   <td className="p-4">
                     {u.role === Role.CONDO_ADMIN ? (
-                      <div className="flex items-center space-x-2">
-                        <LinkIcon className="h-4 w-4 text-slate-400" />
-                        <select 
-                          className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-indigo-500 max-w-[150px]"
-                          value={assignedMachine?.id || ""}
-                          onChange={(e) => handleAssignMachine(u.id, e.target.value)}
-                        >
-                          <option value="">-- Sin Asignar --</option>
-                          {machines.map(m => (
-                            <option key={m.id} value={m.id}>
-                              {m.id} - {m.location}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      machines.length > 0 ? (
+                          <div className="flex items-center space-x-2">
+                            <LinkIcon className="h-4 w-4 text-slate-400" />
+                            <select 
+                              className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-indigo-500 max-w-[150px]"
+                              value={assignedMachine?.id || ""}
+                              onChange={(e) => handleAssignMachine(u.id, e.target.value)}
+                            >
+                              <option value="">-- Sin Asignar --</option>
+                              {machines.map(m => (
+                                <option key={m.id} value={m.id}>
+                                  {m.id} - {m.location}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                      ) : (
+                          <span className="text-red-400 text-xs font-bold cursor-pointer" onClick={() => navigate('/owner/machines')}>Crear Máquina +</span>
+                      )
                     ) : (
                       <span className="text-slate-400 text-sm">-</span>
                     )}
@@ -263,13 +306,6 @@ export const OwnerUsers: React.FC = () => {
                 </tr>
               )
             })}
-            {users.length === 0 && (
-                <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-400">
-                        No hay usuarios registrados aparte del propietario.
-                    </td>
-                </tr>
-            )}
           </tbody>
         </table>
       </div>

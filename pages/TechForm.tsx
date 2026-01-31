@@ -5,18 +5,18 @@ import { ChecklistValue, ReportStatus, Report } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, ADMIN_PHONE } from '../constants';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { sendWhatsAppNotification, generateAdminReviewLink } from '../services/whatsapp';
-import { AlertTriangle, CheckCircle, Save, ArrowRight, MessageCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Save, ArrowRight, MessageCircle, User as UserIcon, Phone } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export const TechForm: React.FC = () => {
   const { machineId } = useParams<{ machineId: string }>();
   const [searchParams] = useSearchParams();
   const reportIdToEdit = searchParams.get('reportId');
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [formType, setFormType] = useState<'weekly' | 'monthly'>('weekly');
   const [values, setValues] = useState<Record<string, ChecklistValue>>({});
-  const [techName, setTechName] = useState('');
-  const [techPhone, setTechPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [previousComments, setPreviousComments] = useState<string | null>(null);
   
@@ -31,10 +31,7 @@ export const TechForm: React.FC = () => {
         const report = await api.getReportById(reportIdToEdit);
         if (report) {
           setFormType(report.type);
-          setTechName(report.technicianName);
-          setTechPhone(report.technicianId);
           setPreviousComments(report.adminComments || null);
-          
           const valMap: Record<string, ChecklistValue> = {};
           report.data.forEach(item => {
             valMap[item.itemId] = item;
@@ -61,13 +58,9 @@ export const TechForm: React.FC = () => {
   };
 
   const validateForm = () => {
-    if (!techName.trim()) {
-      alert("Por favor ingresa el nombre del técnico.");
-      return false;
-    }
-    if (!techPhone.trim()) {
-      alert("Por favor ingresa el teléfono del técnico.");
-      return false;
+    if (!user || !user.phone) {
+        alert("Error de perfil: No tienes un número de teléfono registrado. Contacta al administrador.");
+        return false;
     }
 
     for (const item of checklist) {
@@ -94,20 +87,19 @@ export const TechForm: React.FC = () => {
       if (reportIdToEdit) {
         reportResult = await api.updateReport(reportIdToEdit, {
           data: reportData,
-          technicianName: techName,
-          technicianId: techPhone
+          technicianName: user?.name,
+          technicianId: user?.phone
         });
       } else {
         reportResult = await api.submitReport({
           machineId: machineId!,
-          technicianId: techPhone,
-          technicianName: techName,
+          technicianId: user?.phone || 'Unknown',
+          technicianName: user?.name || 'Unknown',
           data: reportData,
           type: formType
         });
       }
       
-      // Instead of redirecting immediately, show the success state
       setSubmittedReport(reportResult);
 
     } catch (err) {
@@ -121,7 +113,7 @@ export const TechForm: React.FC = () => {
   const handleWhatsAppClick = () => {
     if (!submittedReport) return;
     const reviewLink = generateAdminReviewLink(submittedReport.id);
-    const msg = `🔔 *Nuevo Reporte Mantenimiento*\nMáquina: ${machineId}\nTécnico: ${techName}\nTipo: ${formType}\n\nRevisar aquí: ${reviewLink}`;
+    const msg = `🔔 *Nuevo Reporte Mantenimiento*\nMáquina: ${machineId}\nTécnico: ${user?.name}\nTipo: ${formType}\n\nRevisar aquí: ${reviewLink}`;
     sendWhatsAppNotification(ADMIN_PHONE, msg);
   };
 
@@ -180,55 +172,42 @@ export const TechForm: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Tech Info */}
-        <div className="bg-white p-6 rounded-xl shadow-sm">
-          <h3 className="text-lg font-semibold mb-4 text-brand-700">Datos del Técnico</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Nombre Completo</label>
-              <input 
-                required
-                type="text" 
-                value={techName}
-                onChange={e => setTechName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 p-2 border"
-              />
+        {/* Tech Info Readonly */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+          <h3 className="text-sm font-bold uppercase text-slate-500 mb-3 tracking-wider">Técnico Responsable</h3>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+                <div className="bg-brand-50 p-2 rounded-full"><UserIcon className="h-5 w-5 text-brand-600" /></div>
+                <span className="font-medium text-slate-900">{user?.name}</span>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Teléfono (WhatsApp)</label>
-              <input 
-                required
-                type="tel" 
-                value={techPhone}
-                onChange={e => setTechPhone(e.target.value)}
-                className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 p-2 border"
-                placeholder="52..."
-              />
+            <div className="flex items-center space-x-2">
+                <div className="bg-green-50 p-2 rounded-full"><Phone className="h-5 w-5 text-green-600" /></div>
+                <span className="font-medium text-slate-900">{user?.phone}</span>
             </div>
           </div>
           
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-slate-700">Tipo de Mantenimiento</label>
-            <div className="mt-1 flex space-x-4">
-              <label className="inline-flex items-center">
+          <div className="mt-6 pt-4 border-t border-slate-100">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Tipo de Mantenimiento</label>
+            <div className="flex space-x-4">
+              <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-center transition ${formType === 'weekly' ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold' : 'bg-white hover:bg-slate-50'}`}>
                 <input 
                   type="radio" 
                   checked={formType === 'weekly'} 
                   onChange={() => setFormType('weekly')}
-                  className="form-radio text-brand-600" 
+                  className="hidden" 
                   disabled={!!reportIdToEdit}
                 />
-                <span className="ml-2">Semanal</span>
+                Semanal
               </label>
-              <label className="inline-flex items-center">
+              <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-center transition ${formType === 'monthly' ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold' : 'bg-white hover:bg-slate-50'}`}>
                 <input 
                   type="radio" 
                   checked={formType === 'monthly'} 
                   onChange={() => setFormType('monthly')}
-                  className="form-radio text-brand-600" 
+                  className="hidden" 
                   disabled={!!reportIdToEdit}
                 />
-                <span className="ml-2">Mensual</span>
+                Mensual
               </label>
             </div>
           </div>
