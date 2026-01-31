@@ -1,0 +1,7 @@
+{
+  "name": "Agua/24 App",
+  "description": "Professional maintenance checklist and validation system for water purification machines. Features role-based access for technicians and administrators, real-time validation workflows, and analytics.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
