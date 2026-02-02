@@ -1,3 +1,7 @@
+// URL OFICIAL DE PRODUCCIÓN
+// Esto asegura que aunque el técnico use una versión vieja, el link que comparte lleve a la nueva.
+const PRODUCTION_URL = 'https://portal-agua24.vercel.app';
+
 export const sendWhatsAppNotification = (phone: string, message: string) => {
   const encodedMessage = encodeURIComponent(message);
   const url = `https://wa.me/${phone}?text=${encodedMessage}`;
@@ -5,14 +9,12 @@ export const sendWhatsAppNotification = (phone: string, message: string) => {
 };
 
 export const generateAdminReviewLink = (reportId: string) => {
-  const baseUrl = window.location.origin;
-  // Point to the Owner app route
-  return `${baseUrl}/#/owner/review/${reportId}`;
+  // Usamos PRODUCTION_URL en lugar de window.location.origin
+  return `${PRODUCTION_URL}/#/owner/review/${reportId}`;
 };
 
 export const generateTechEditLink = (reportId: string, machineId: string) => {
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/#/tech/form/${machineId}?reportId=${reportId}`;
+  return `${PRODUCTION_URL}/#/tech/form/${machineId}?reportId=${reportId}`;
 };
 
 export const generateStartVisitMessage = (machineLocation: string, techName: string) => {
@@ -20,6 +22,5 @@ export const generateStartVisitMessage = (machineLocation: string, techName: str
 };
 
 export const generateCondoReportMessage = (machineId: string, location: string, date: string, tds: string, ph: string) => {
-    const baseUrl = window.location.origin;
-    return `✅ *Mantenimiento Finalizado*\n\nEstimado cliente, el servicio de purificación en *${location}* (ID: ${machineId}) ha sido completado y validado exitosamente hoy ${date}.\n\n📊 *Resumen de Calidad:*\n🔹 TDS (Pureza): ${tds} ppm\n🔹 pH: ${ph}\n\n📄 Puede descargar su reporte detallado y consultar el historial ingresando a su portal:\n${baseUrl}/#/login/condo\n\n_Agua/24 - Siempre pura._`;
+    return `✅ *Mantenimiento Finalizado*\n\nEstimado cliente, el servicio de purificación en *${location}* (ID: ${machineId}) ha sido completado y validado exitosamente hoy ${date}.\n\n📊 *Resumen de Calidad:*\n🔹 TDS (Pureza): ${tds} ppm\n🔹 pH: ${ph}\n\n📄 Puede descargar su reporte detallado y consultar el historial ingresando a su portal:\n${PRODUCTION_URL}/#/login/condo\n\n_Agua/24 - Siempre pura._`;
 };

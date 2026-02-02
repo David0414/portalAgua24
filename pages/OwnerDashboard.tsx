@@ -3,7 +3,7 @@ import { api } from '../services/db';
 import { Report, ReportStatus, Machine } from '../types';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2 } from 'lucide-react';
+import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, Info } from 'lucide-react';
 import { format } from 'date-fns';
 
 export const OwnerDashboard: React.FC = () => {
@@ -32,7 +32,7 @@ export const OwnerDashboard: React.FC = () => {
       reportData.forEach(r => {
         const earningsItem = r.data.find(item => item.itemId === 'w13');
         if (earningsItem && earningsItem.value) {
-            // Asegurar que se convierta a número correctamente (removiendo símbolos si existen)
+            // Asegurar que se convierta a número correctamente
             const rawVal = earningsItem.value.toString().replace(/[^0-9.]/g, '');
             sum += Number(rawVal) || 0;
         }
@@ -73,6 +73,7 @@ export const OwnerDashboard: React.FC = () => {
     { name: 'Rechazados', value: reports.length - pendingCount - approvedCount },
   ];
   const COLORS = ['#fbbf24', '#22c55e', '#ef4444'];
+  const hasData = pieData.some(d => d.value > 0);
 
   // --- PANTALLA DE CARGA INICIAL ---
   if (loading && !refreshing && reports.length === 0) {
@@ -97,7 +98,10 @@ export const OwnerDashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-slate-900 flex items-center">
             Panel de Propietario
           </h1>
-          <p className="text-slate-500">Gestión de activos, validación y finanzas.</p>
+          <p className="text-slate-500 flex items-center gap-2">
+            Gestión de activos, validación y finanzas.
+            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">v3.0 Live</span>
+          </p>
         </div>
       </header>
       
@@ -213,26 +217,35 @@ export const OwnerDashboard: React.FC = () => {
         {/* Chart */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
            <h2 className="font-semibold text-slate-800 mb-6">Estado de Cumplimiento</h2>
-           <div className="flex-1 min-h-[250px]">
-             <ResponsiveContainer width="100%" height="100%">
-               <PieChart>
-                 <Pie
-                   data={pieData}
-                   cx="50%"
-                   cy="50%"
-                   innerRadius={60}
-                   outerRadius={80}
-                   fill="#8884d8"
-                   paddingAngle={5}
-                   dataKey="value"
-                 >
-                   {pieData.map((entry, index) => (
-                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                   ))}
-                 </Pie>
-                 <Tooltip />
-               </PieChart>
-             </ResponsiveContainer>
+           <div className="flex-1 min-h-[250px] flex items-center justify-center">
+             {hasData ? (
+                 <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                     <Pie
+                       data={pieData}
+                       cx="50%"
+                       cy="50%"
+                       innerRadius={60}
+                       outerRadius={80}
+                       fill="#8884d8"
+                       paddingAngle={5}
+                       dataKey="value"
+                     >
+                       {pieData.map((entry, index) => (
+                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                       ))}
+                     </Pie>
+                     <Tooltip />
+                   </PieChart>
+                 </ResponsiveContainer>
+             ) : (
+                 <div className="text-center text-slate-400">
+                    <div className="bg-slate-50 p-4 rounded-full inline-block mb-2">
+                        <Activity className="h-6 w-6 opacity-50" />
+                    </div>
+                    <p className="text-sm">Sin datos suficientes para graficar</p>
+                 </div>
+             )}
            </div>
            <div className="flex justify-center space-x-4 mt-4 text-xs font-medium text-slate-600">
               <div className="flex items-center"><div className="w-2 h-2 bg-amber-400 rounded-full mr-2"></div> Pendientes</div>
