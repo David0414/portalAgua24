@@ -10,26 +10,13 @@ const STORAGE_KEY = 'aquacheck_db_v3';
 const getDb = () => {
   const data = localStorage.getItem(STORAGE_KEY);
   if (data) return JSON.parse(data);
-
-  // Seed Data if empty
-  const initialData = {
-    reports: [],
-    machines: [
-      { id: 'M-001', location: 'Plaza Central - Torre A', lastMaintenance: '2023-10-01', assignedToUserId: 'u-condo-1' },
-    ],
-    users: [
-      { id: 'u-owner', email: 'admin@agua24.com', password: '123', name: 'Propietario Principal', role: Role.OWNER, phone: '5215555555555' },
-    ]
-  };
-  saveDb(initialData);
-  return initialData;
+  return { reports: [], machines: [], users: [] };
 };
 
 const saveDb = (data: any) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
-// Initialize DB on load if mock
 if (!USE_SUPABASE) getDb();
 
 // ==========================================
@@ -37,59 +24,62 @@ if (!USE_SUPABASE) getDb();
 // ==========================================
 
 export const api = {
-  // --- Auth Methods ---
+  // --- Auth Methods (MODO "SOLO DB") ---
+  
   login: async (identifier: string, password: string): Promise<User | null> => {
     if (USE_SUPABASE) {
-        
-        let email = identifier.trim();
-        // Lógica estricta: Si no tiene @, es usuario de condominio, agregar sufijo
-        if (!email.includes('@')) {
-            email = `${email}@agua24.app`;
-        }
-
-        console.log("Intentando login con:", email);
-
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
-
-        if (error) {
-            console.error("Error de Supabase Auth:", error);
-            
-            // Detección de error de base de datos (Error 500)
-            if (error.message && error.message.includes("Database error")) {
-                 alert("⚠️ ERROR CRÍTICO DE BASE DE DATOS\n\nEl sistema de login de Supabase falló (Error 500).\nEsto ocurre porque la función de creación de usuarios está obsoleta.\n\nSOLUCIÓN:\n1. Ve al SQL Editor en Supabase.\n2. Ejecuta el script 'REPARAR_LOGIN.sql'.\n3. Borra este usuario y créalo de nuevo.");
+        try {
+            let email = identifier.trim();
+            // Lógica para usuarios de condominio que no usan email
+            if (!email.includes('@')) {
+                // Buscamos por el nombre de usuario (asumimos que lo guardamos en el campo email para simplificar en este modo bypass)
+                // Ojo: En el script SQL, el campo es 'email'. 
+                // Si es condominio, el identificador 'torre-a' se buscará.
             }
-            // Detección específica de error de configuración
-            else if (error.message && (error.message.includes("Invalid API key") || error.status === 401)) {
-                alert("⚠️ ERROR DE CONFIGURACIÓN\n\nLa 'API Key' de Supabase es inválida o no ha sido configurada.\n\nPor favor edita el archivo 'services/supabaseClient.ts' y coloca tus claves reales.");
-            } else if (error.message.includes("Invalid login credentials")) {
-                // Credenciales normales incorrectas, no alertamos, dejamos que la UI lo maneje
-                console.warn("Credenciales incorrectas");
-            } else {
-                alert(`Error de conexión: ${error.message}`);
+
+            console.log("🔍 Buscando usuario en tabla app_users:", email);
+
+            // AQUÍ ESTÁ EL CAMBIO: Ya no usamos supabase.auth.signInWithPassword
+            // Usamos una consulta directa a la tabla. Supabase actúa solo como DB.
+            const { data, error } = await supabase
+                .from('app_users')
+                .select('*')
+                .or(`email.eq.${email},email.eq.${email}@agua24.app`) // Busca exacto o con el sufijo
+                .eq('password', password.trim()) // Compara contraseña directa
+                .single();
+
+            if (error) {
+                console.error("Error DB Login:", error);
+                if (error.code === 'PGRST116') { // Código de "0 resultados"
+                     alert("Usuario o contraseña incorrectos.");
+                } else {
+                     alert(`Error de conexión: ${error.message}`);
+                }
+                return null;
             }
-            
+
+            if (data) {
+                // Mapeamos el usuario de la DB al tipo User
+                return {
+                    id: data.id,
+                    email: data.email,
+                    name: data.name,
+                    role: data.role as Role,
+                    phone: data.phone,
+                    assignedMachineId: data.assignedMachineId,
+                    username: data.email.includes('@agua24.app') ? data.email.split('@')[0] : undefined
+                };
+            }
+            return null;
+
+        } catch (err: any) {
+            console.error("Excepción Login:", err);
+            alert("Error desconocido intentando conectar.");
             return null;
         }
 
-        if (!data.user) return null;
-
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-        if (profileError) {
-             console.error("Error obteniendo perfil:", profileError);
-             return null; 
-        }
-            
-        return profile as User;
-
     } else {
+        // Offline Mode
         await new Promise(r => setTimeout(r, 600)); 
         const db = getDb();
         const user = db.users.find((u: any) => 
@@ -104,68 +94,49 @@ export const api = {
 
   getUsers: async (): Promise<User[]> => {
     if (USE_SUPABASE) {
-        const { data } = await supabase.from('profiles').select('*');
+        const { data } = await supabase.from('app_users').select('*');
         return data as User[] || [];
     } else {
-        await new Promise(r => setTimeout(r, 400));
         const db = getDb();
         return db.users.map(({ password, ...u }: any) => u);
     }
   },
 
+  // Crear usuario insertando directamente en la tabla (Sin Auth Trigger)
   createUser: async (user: Omit<User, 'id'> & { password: string, assignedMachineId?: string }): Promise<User> => {
     if (USE_SUPABASE) {
         let finalEmail = user.email;
-        // Logic de nombres: si es condominio y nos mandan un 'username' simple, construimos el email falso
+        // Si no es email, lo convertimos a formato email interno o usamos el username
         if (!finalEmail && user.username) {
-            finalEmail = `${user.username}@agua24.app`;
+            finalEmail = user.username; // Lo guardamos tal cual o con sufijo
         }
         
         if (!finalEmail) throw new Error("Se requiere email o usuario");
 
-        console.log("Creando usuario:", finalEmail, "Tel:", user.phone, "Máquina:", user.assignedMachineId);
-
-        // 1. Crear usuario Auth y Perfil básico mediante RPC
-        const { data: newId, error } = await supabase.rpc('create_new_user', {
-            email_input: finalEmail,
-            password_input: user.password,
-            name_input: user.name,
-            role_input: user.role,
-            username_input: user.username || null,
-            phone_input: user.phone || null 
-        });
-
-        if (error) {
-            console.error("Error RPC:", error);
-            throw new Error(error.message);
-        }
-
-        // 2. Si se asignó una máquina, actualizar el perfil inmediatamente
-        if (user.assignedMachineId) {
-            const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ assignedMachineId: user.assignedMachineId })
-                .eq('id', newId);
-            
-            if (updateError) console.error("Error asignando máquina post-creación:", updateError);
-        }
-
-        return {
-            id: newId,
+        const newUserPayload = {
             email: finalEmail,
-            username: user.username,
+            password: user.password.trim(), // Guardamos password directo
             name: user.name,
             role: user.role,
-            phone: user.phone,
-            assignedMachineId: user.assignedMachineId
+            phone: user.phone || null,
+            assignedMachineId: user.assignedMachineId || null
         };
 
-    } else {
-        await new Promise(r => setTimeout(r, 500));
-        const db = getDb();
-        if (db.users.find((u: any) => (u.email && u.email === user.email) || (u.username && u.username === user.username))) {
-          throw new Error("El usuario o correo ya existe");
+        const { data, error } = await supabase
+            .from('app_users')
+            .insert(newUserPayload)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error insertando usuario:", error);
+            throw new Error(`No se pudo crear: ${error.message}`);
         }
+
+        return data as User;
+
+    } else {
+        const db = getDb();
         const newUser = { ...user, id: `u-${uuidv4()}` };
         db.users.push(newUser);
         saveDb(db);
@@ -174,23 +145,21 @@ export const api = {
     }
   },
 
+  createProfileOnly: async (user: Omit<User, 'id'> & { uid: string, assignedMachineId?: string }): Promise<User> => {
+      // Este método ya no es necesario en el modo "Solo DB" porque createUser hace todo
+      // Pero lo mantenemos por compatibilidad
+      throw new Error("En modo Base de Datos Directa, usa 'Crear Usuario (Auto)'");
+  },
+
   updateUser: async (id: string, updates: Partial<User & { password?: string }>): Promise<User> => {
     if (USE_SUPABASE) {
-        const { password, ...profileUpdates } = updates;
-        // La tabla profiles debe tener assignedMachineId (o snake_case assigned_machine_id si el mapping es automático)
-        // Nota: Supabase JS client suele hacer auto-mapping si las columnas coinciden o si se configura.
-        // Asumimos que la columna en DB es "assignedMachineId" (entre comillas) o el JS lo maneja. 
-        // En el script SQL la definimos como "assignedMachineId" (con comillas) o text.
-        
-        const { data, error } = await supabase.from('profiles').update(profileUpdates).eq('id', id).select().single();
+        const { ...fieldsToUpdate } = updates;
+        const { data, error } = await supabase.from('app_users').update(fieldsToUpdate).eq('id', id).select().single();
         if(error) throw error;
         return data as User;
     } else {
-        await new Promise(r => setTimeout(r, 500));
         const db = getDb();
         const index = db.users.findIndex((u: User) => u.id === id);
-        if (index === -1) throw new Error("Usuario no encontrado");
-        
         const updatedUser = { ...db.users[index], ...updates };
         db.users[index] = updatedUser;
         saveDb(db);
@@ -201,7 +170,8 @@ export const api = {
 
   deleteUser: async (id: string): Promise<void> => {
     if (USE_SUPABASE) {
-        const { error } = await supabase.rpc('delete_user_completely', { target_user_id: id });
+        // Borrado directo SQL simple
+        const { error } = await supabase.from('app_users').delete().eq('id', id);
         if (error) throw error;
     } else {
         const db = getDb();
@@ -210,7 +180,7 @@ export const api = {
     }
   },
 
-  // --- Machine Methods ---
+  // --- Machine Methods (Sin cambios mayores) ---
 
   getMachines: async (): Promise<Machine[]> => {
     if (USE_SUPABASE) {
@@ -256,24 +226,19 @@ export const api = {
 
   assignMachineToUser: async (machineId: string, userId: string | null): Promise<void> => {
     if (USE_SUPABASE) {
-        // En este modelo, asignamos la máquina al perfil del usuario.
         if (userId) {
-            await supabase.from('profiles').update({ assignedMachineId: machineId }).eq('id', userId);
+            await supabase.from('app_users').update({ assignedMachineId: machineId }).eq('id', userId);
         }
-        // Opcional: Actualizar la tabla machines si queremos tracking inverso, 
-        // pero la fuente de verdad es el perfil para el login.
         await supabase.from('machines').update({ assignedToUserId: userId }).eq('id', machineId);
     } else {
         const db = getDb();
         const mIndex = db.machines.findIndex((m: Machine) => m.id === machineId);
         if (mIndex >= 0) db.machines[mIndex].assignedToUserId = userId;
-        const uIndex = db.users.findIndex((u: User) => u.id === userId);
-        if (uIndex >= 0) db.users[uIndex].assignedMachineId = machineId;
         saveDb(db);
     }
   },
 
-  // --- Report Methods ---
+  // --- Report Methods (Sin cambios) ---
 
   getAllReports: async (): Promise<Report[]> => {
     if (USE_SUPABASE) {
@@ -341,12 +306,8 @@ export const api = {
         const updates: any = { status, updatedAt: new Date().toISOString() };
         if (comments) updates.adminComments = comments;
         
-        // IMPORTANT: Ensure RLS allows update on public.reports for Owner
         const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select().single();
-        if (error) {
-            console.error("Supabase Update Error:", error);
-            throw error;
-        }
+        if (error) throw error;
         return data as unknown as Report;
     } else {
         const db = getDb();

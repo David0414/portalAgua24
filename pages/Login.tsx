@@ -15,23 +15,29 @@ export const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already logged in, redirect immediately (checking state first)
+  // Redirección post-login
   useEffect(() => {
     if (user) {
-       const origin = (location.state as any)?.from?.pathname || getDefaultPath(user.role);
-       const search = (location.state as any)?.from?.search || "";
-       navigate(origin + search, { replace: true });
+       // Recuperar la ubicación original si el usuario fue redirigido
+       const state = location.state as any;
+       const fromLocation = state?.from;
+       
+       if (fromLocation) {
+           // CORRECCIÓN: Reconstruir la ruta completa incluyendo 'search' (?id=...) y 'hash'.
+           // Esto asegura que si el técnico da click en un link de corrección, llegue al reporte correcto.
+           const target = `${fromLocation.pathname}${fromLocation.search || ''}${fromLocation.hash || ''}`;
+           navigate(target, { replace: true });
+       } else {
+           // Si no hay historial, ir al dashboard según el rol
+           switch (user.role) {
+                case Role.OWNER: navigate('/owner/dashboard'); break;
+                case Role.CONDO_ADMIN: navigate('/condo/dashboard'); break;
+                case Role.TECHNICIAN: navigate('/tech/scan'); break;
+                default: navigate('/');
+           }
+       }
     }
   }, [user, navigate, location]);
-
-  const getDefaultPath = (role: Role) => {
-    switch (role) {
-        case Role.OWNER: return '/owner/dashboard';
-        case Role.CONDO_ADMIN: return '/condo/dashboard';
-        case Role.TECHNICIAN: return '/tech/scan';
-        default: return '/';
-    }
-  };
 
   // UI Configuration
   let title = "Ingreso";
@@ -66,10 +72,9 @@ export const Login: React.FC = () => {
     const success = await login(identifier, password);
     setLoading(false);
 
-    if (success) {
-      // Navigation is handled by the useEffect above reacting to user state change
-    } else {
-      setError('Credenciales incorrectas. Verifique sus datos.');
+    if (!success) {
+      // El mensaje de error ya se maneja con alert en db.ts, pero mostramos uno visual aquí también
+      setError('No se pudo iniciar sesión. Revise sus credenciales.');
     }
   };
 
@@ -122,6 +127,13 @@ export const Login: React.FC = () => {
             </div>
 
             {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg text-center font-medium">{error}</div>}
+
+            <div className="flex items-center justify-between text-sm">
+                 <label className="flex items-center text-slate-500">
+                    <input type="checkbox" checked readOnly className="mr-2 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+                    Mantener sesión iniciada
+                 </label>
+            </div>
 
             <button 
               type="submit" 
