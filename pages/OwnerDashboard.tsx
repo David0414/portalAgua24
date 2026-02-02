@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../services/db';
 import { Report, ReportStatus, Machine } from '../types';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Clock, Settings, Users, Activity, DollarSign, RefreshCw } from 'lucide-react';
+import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export const OwnerDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [reports, setReports] = useState<Report[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,8 +16,10 @@ export const OwnerDashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Función de carga de datos robusta
-  const loadDashboardData = useCallback(async () => {
-    setRefreshing(true);
+  const loadDashboardData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
     try {
       const reportData = await api.getAllReports();
       const machineData = await api.getMachines();
@@ -24,11 +27,14 @@ export const OwnerDashboard: React.FC = () => {
       setReports(reportData);
       setMachines(machineData);
       
+      // Calcular ganancias sumando el campo 'w13' de todos los reportes
       let sum = 0;
       reportData.forEach(r => {
         const earningsItem = r.data.find(item => item.itemId === 'w13');
         if (earningsItem && earningsItem.value) {
-          sum += Number(earningsItem.value) || 0;
+            // Asegurar que se convierta a número correctamente (removiendo símbolos si existen)
+            const rawVal = earningsItem.value.toString().replace(/[^0-9.]/g, '');
+            sum += Number(rawVal) || 0;
         }
       });
       setTotalEarnings(sum);
@@ -41,20 +47,23 @@ export const OwnerDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // 1. Carga inicial
-    loadDashboardData();
+    // Detectar si venimos de una acción que requiere recarga forzada
+    const state = location.state as { forceRefresh?: boolean };
+    const shouldForce = state?.forceRefresh || false;
 
-    // 2. Auto-recarga al volver a la pestaña (Evita datos viejos)
+    loadDashboardData(shouldForce);
+
+    // Auto-recarga al volver a la pestaña (focus)
     const handleFocus = () => {
-      console.log("🔄 Ventana enfocada: Actualizando datos...");
-      loadDashboardData();
+      console.log("🔄 Ventana enfocada: Sincronizando datos...");
+      loadDashboardData(true);
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [loadDashboardData]);
+  }, [loadDashboardData, location.key]); 
 
-  // Stats
+  // Stats logic
   const pendingCount = reports.filter(r => r.status === ReportStatus.PENDING).length;
   const approvedCount = reports.filter(r => r.status === ReportStatus.APPROVED).length;
 
@@ -65,41 +74,57 @@ export const OwnerDashboard: React.FC = () => {
   ];
   const COLORS = ['#fbbf24', '#22c55e', '#ef4444'];
 
+  // --- PANTALLA DE CARGA INICIAL ---
+  if (loading && !refreshing && reports.length === 0) {
+      return (
+          <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-300">
+              <div className="relative">
+                  <div className="absolute inset-0 bg-indigo-200 rounded-full blur-xl opacity-50 animate-pulse"></div>
+                  <div className="relative bg-white p-4 rounded-full shadow-lg">
+                      <Loader2 className="h-10 w-10 text-indigo-600 animate-spin" />
+                  </div>
+              </div>
+              <h2 className="text-xl font-bold text-slate-700">Actualizando Panel...</h2>
+              <p className="text-slate-400 text-sm">Obteniendo últimos reportes y finanzas</p>
+          </div>
+      );
+  }
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center">
             Panel de Propietario
-            {refreshing && <RefreshCw className="ml-3 h-5 w-5 text-slate-400 animate-spin" />}
           </h1>
           <p className="text-slate-500">Gestión de activos, validación y finanzas.</p>
         </div>
-        
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-            <button 
-              onClick={loadDashboardData}
-              disabled={refreshing}
-              className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center justify-center hover:bg-slate-50 hover:text-indigo-600 transition shadow-sm"
-            >
-              <RefreshCw className={`h-5 w-5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Actualizar
-            </button>
-
-            <div className="bg-green-100 text-green-800 px-6 py-2 rounded-xl flex items-center border border-green-200 shadow-sm">
-                <div className="bg-green-200 p-2 rounded-full mr-3">
-                    <DollarSign className="h-5 w-5 text-green-700" />
-                </div>
-                <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">Ganancias</p>
-                    <p className="text-xl font-bold">${totalEarnings.toLocaleString()}</p>
-                </div>
-            </div>
-        </div>
       </header>
+      
+      {/* ACTION BAR: Refresh & Ganancias */}
+      <div className="flex flex-col gap-4">
+          <button 
+            onClick={() => loadDashboardData(true)}
+            disabled={refreshing}
+            className="w-full md:w-auto bg-white border border-slate-300 text-slate-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center hover:bg-slate-50 hover:text-indigo-600 transition shadow-sm"
+          >
+            <RefreshCw className={`h-5 w-5 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Sincronizando...' : 'Actualizar Datos'}
+          </button>
 
-      {/* KPI / Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-green-100 text-green-800 px-6 py-4 rounded-xl flex items-center border border-green-200 shadow-sm">
+              <div className="bg-green-200 p-3 rounded-full mr-4">
+                  <DollarSign className="h-6 w-6 text-green-700" />
+              </div>
+              <div>
+                  <p className="text-xs font-bold uppercase tracking-wide opacity-70">GANANCIAS (MES)</p>
+                  <p className="text-3xl font-bold tracking-tight">${totalEarnings.toLocaleString()}</p>
+              </div>
+          </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-4 relative overflow-hidden">
           <div className={`absolute top-0 right-0 w-16 h-16 bg-amber-400 opacity-10 rounded-bl-full`}></div>
           <div className="p-3 bg-amber-100 text-amber-600 rounded-full z-10">
@@ -136,32 +161,17 @@ export const OwnerDashboard: React.FC = () => {
             <p className="text-xs text-slate-400">Condominios y Técnicos</p>
           </div>
         </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex items-center space-x-4">
-          <div className="p-3 bg-teal-100 text-teal-600 rounded-full">
-            <Activity className="h-8 w-8" />
-          </div>
-          <div>
-            <p className="text-sm text-slate-500 font-medium">Reportes</p>
-            <p className="text-2xl font-bold text-slate-900">{reports.length}</p>
-          </div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Reports List */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-            <h2 className="font-semibold text-slate-800">Bitácora de Visitas Recientes</h2>
+            <h2 className="font-semibold text-slate-800">Bitácora Reciente</h2>
             <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border">{reports.length} total</span>
           </div>
           <div className="divide-y divide-slate-100 overflow-y-auto flex-1">
-            {loading ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                    <RefreshCw className="h-8 w-8 animate-spin mb-2" />
-                    <p>Cargando datos...</p>
-                </div>
-            ) : reports.map(report => (
+            {reports.map(report => (
               <div key={report.id} className="p-4 hover:bg-slate-50 transition flex items-center justify-between group">
                 <div>
                   <div className="flex items-center space-x-2">
@@ -192,7 +202,7 @@ export const OwnerDashboard: React.FC = () => {
                 </Link>
               </div>
             ))}
-            {reports.length === 0 && !loading && (
+            {reports.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-slate-400">
                   <p>No hay reportes registrados.</p>
               </div>

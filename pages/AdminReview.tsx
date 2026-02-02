@@ -54,6 +54,11 @@ export const AdminReview: React.FC = () => {
 
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
 
+  // Helper para volver al dashboard forzando recarga
+  const goBackToDashboard = () => {
+      navigate('/owner/dashboard', { replace: true, state: { forceRefresh: true } });
+  };
+
   const handleApprove = async () => {
     setLoadingAction(true);
     try {
@@ -102,7 +107,7 @@ export const AdminReview: React.FC = () => {
     setLoadingAction(true);
     try {
         await api.deleteReport(report.id);
-        navigate('/owner/dashboard');
+        goBackToDashboard();
     } catch (error) {
         console.error("Error deleting:", error);
         alert("No se pudo eliminar el reporte.");
@@ -225,7 +230,7 @@ export const AdminReview: React.FC = () => {
         )}
            
         <button
-            onClick={() => navigate('/owner/dashboard')}
+            onClick={goBackToDashboard}
             className="w-full flex items-center justify-center space-x-2 text-slate-500 px-4 py-3 rounded-xl font-medium hover:bg-slate-50 transition mt-4"
         >
             <ArrowLeft className="h-5 w-5" />
@@ -238,7 +243,7 @@ export const AdminReview: React.FC = () => {
   // --- REVIEW VIEW (TABLA REDISEÑADA) ---
   return (
     <div className="max-w-4xl mx-auto pb-32">
-      <button onClick={() => navigate('/owner/dashboard')} className="flex items-center text-slate-500 hover:text-brand-600 mb-4 transition">
+      <button onClick={goBackToDashboard} className="flex items-center text-slate-500 hover:text-brand-600 mb-4 transition">
         <ArrowLeft className="h-4 w-4 mr-1" /> Volver
       </button>
 
