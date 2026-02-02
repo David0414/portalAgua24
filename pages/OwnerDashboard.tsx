@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, Info } from 'lucide-react';
 import { format } from 'date-fns';
+import { PRODUCTION_URL } from '../services/whatsapp';
 
 export const OwnerDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -47,6 +48,14 @@ export const OwnerDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // PROTECCIÓN DE URL: Si estamos en un deploy viejo/preview de Vercel, forzar ir a producción
+    // Evita que el usuario vea dashboards viejos o datos en cero.
+    if (window.location.hostname.includes('-projects.vercel.app')) {
+        console.log("⚠️ Detectada versión antigua/preview. Redirigiendo a Producción...");
+        window.location.href = `${PRODUCTION_URL}/#/owner/dashboard`;
+        return;
+    }
+
     // Detectar si venimos de una acción que requiere recarga forzada
     const state = location.state as { forceRefresh?: boolean };
     const shouldForce = state?.forceRefresh || false;
@@ -86,7 +95,7 @@ export const OwnerDashboard: React.FC = () => {
                   </div>
               </div>
               <h2 className="text-xl font-bold text-slate-700">Actualizando Panel...</h2>
-              <p className="text-slate-400 text-sm">Obteniendo últimos reportes y finanzas</p>
+              <p className="text-slate-400 text-sm">Sincronizando con base de datos en tiempo real</p>
           </div>
       );
   }
@@ -100,7 +109,7 @@ export const OwnerDashboard: React.FC = () => {
           </h1>
           <p className="text-slate-500 flex items-center gap-2">
             Gestión de activos, validación y finanzas.
-            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">v3.0 Live</span>
+            <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full border border-green-200 font-bold">Producción Oficial</span>
           </p>
         </div>
       </header>

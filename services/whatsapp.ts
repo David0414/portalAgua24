@@ -1,6 +1,6 @@
 // URL OFICIAL DE PRODUCCIÓN
 // Esto asegura que aunque el técnico use una versión vieja, el link que comparte lleve a la nueva.
-const PRODUCTION_URL = 'https://portal-agua24.vercel.app';
+export const PRODUCTION_URL = 'https://portal-agua24.vercel.app';
 
 export const sendWhatsAppNotification = (phone: string, message: string) => {
   const encodedMessage = encodeURIComponent(message);

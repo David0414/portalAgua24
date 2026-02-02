@@ -4,7 +4,7 @@ import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
 import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building } from 'lucide-react';
-import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage } from '../services/whatsapp';
+import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -54,9 +54,12 @@ export const AdminReview: React.FC = () => {
 
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
 
-  // Helper para volver al dashboard forzando recarga
+  // Helper para volver al dashboard forzando recarga ABSOLUTA a Producción
   const goBackToDashboard = () => {
-      navigate('/owner/dashboard', { replace: true, state: { forceRefresh: true } });
+      // Usamos window.location.href en lugar de navigate.
+      // Esto fuerza al navegador a ir a la URL correcta, sacando al usuario de cualquier
+      // versión "preview" o link viejo de Vercel.
+      window.location.href = `${PRODUCTION_URL}/#/owner/dashboard`;
   };
 
   const handleApprove = async () => {
