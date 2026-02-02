@@ -13,7 +13,7 @@ export const generateReportPDF = (report: Report, locationName: string) => {
   // --- HEADER ---
   // Fondo azul superior
   doc.setFillColor(14, 165, 233); // Brand-500
-  // CORRECCIÓN: Se cambió 21s0 por 210
+  // Corrección: Ancho A4 es 210mm
   doc.rect(0, 0, 210, 40, 'F');
 
   // Logo Text (Simulado)

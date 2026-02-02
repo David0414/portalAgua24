@@ -1,18 +1,6 @@
 declare module 'jspdf' {
-    export default class jsPDF {
-        constructor(options?: any);
-        setFillColor(r: number, g: number, b: number): void;
-        rect(x: number, y: number, w: number, h: number, style: string): void;
-        setTextColor(r: number, g: number, b: number): void;
-        setFontSize(size: number): void;
-        setFont(fontName: string, fontStyle: string): void;
-        // Definición laxa para aceptar sobrecargas de argumentos
-        text(text: string, x: number, y: number, options?: any, transform?: any): void;
-        roundedRect(x: number, y: number, w: number, h: number, rx: number, ry: number, style: string): void;
-        save(filename: string): void;
-        // Propiedades dinámicas agregadas por plugins
+    interface jsPDF {
         lastAutoTable?: { finalY: number };
-        internal: any;
     }
 }
 
@@ -29,15 +17,14 @@ declare module 'html5-qrcode' {
 }
 
 declare module 'react-qr-code' {
-    import React from 'react';
     interface QRCodeProps {
         value: string;
         size?: number;
         bgColor?: string;
         fgColor?: string;
         level?: 'L' | 'M' | 'Q' | 'H';
-        style?: React.CSSProperties;
+        style?: import('react').CSSProperties;
     }
-    const QRCode: React.FC<QRCodeProps>;
-    export default QRCode;
+    const QRCodeComponent: import('react').FC<QRCodeProps>;
+    export default QRCodeComponent;
 }
