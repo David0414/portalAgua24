@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/db';
 import { Report, ReportStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle, Droplets, Calendar, Activity, Wind, Info, LogOut } from 'lucide-react';
+import { CheckCircle, Droplets, Calendar, Activity, Wind, Info, LogOut, Microscope, TestTube, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -43,8 +43,11 @@ export const CondoDashboard: React.FC = () => {
       setHistory(machineReports);
       setLatestReport(machineReports[0] || null);
 
-      // 3. Prepare Chart Data
-      const graphData = machineReports.slice(0, 10).reverse().map(r => {
+      // 3. Prepare Chart Data (SOLO USAR REPORTES SEMANALES PARA LA GRÁFICA DE TDS)
+      // Los reportes mensuales no tienen TDS numérico, por lo que romperían la gráfica.
+      const weeklyReports = machineReports.filter(r => r.type === 'weekly');
+      
+      const graphData = weeklyReports.slice(0, 10).reverse().map(r => {
         const tds = r.data.find(i => i.itemId === 'w9')?.value || 0;
         return {
           date: format(new Date(r.createdAt), 'dd/MM'),
@@ -80,6 +83,8 @@ export const CondoDashboard: React.FC = () => {
     );
   }
 
+  const isMonthly = latestReport?.type === 'monthly';
+
   return (
     <div className="space-y-8 pb-10">
       {/* Header Section */}
@@ -108,8 +113,9 @@ export const CondoDashboard: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-slate-800 flex items-center">
               <Activity className="mr-2 text-teal-500 h-5 w-5" />
-              Tendencia de Pureza (TDS Salida)
+              Tendencia de Pureza Histórica (TDS)
             </h2>
+            <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">Datos Semanales</span>
           </div>
           
           <div className="h-[300px] w-full">
@@ -133,46 +139,88 @@ export const CondoDashboard: React.FC = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-slate-400 bg-slate-50 rounded-lg">
-                <p>No hay reportes validados aún.</p>
+                <p>No hay reportes semanales validados aún.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Current Metrics Cards */}
+        {/* Current Metrics Cards - LOGIC SWITCH BASED ON REPORT TYPE */}
         <div className="space-y-6">
-           {/* TDS CARD */}
-           <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-              <Droplets className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10" />
-              <p className="text-teal-100 text-sm font-medium mb-1">Pureza Final (TDS)</p>
-              <div className="flex items-baseline space-x-2">
-                 <span className="text-5xl font-bold">{getValue('w9')}</span>
-                 <span className="text-lg opacity-80">ppm</span>
-              </div>
-              <div className="mt-4 pt-4 border-t border-white/20 flex justify-between items-center text-sm">
-                 <span>Última Medición:</span>
-                 <span className="font-mono">{latestReport ? format(new Date(latestReport.createdAt), 'dd/MM') : '--'}</span>
-              </div>
-           </div>
+           
+           {isMonthly ? (
+               /* --- VISTA DE REPORTE MENSUAL (Laboratorio) --- */
+               <>
+                 <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                    <Microscope className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10" />
+                    <p className="text-indigo-100 text-sm font-medium mb-1">Última Validación</p>
+                    <div className="flex flex-col">
+                        <span className="text-3xl font-bold">Certificación Mensual</span>
+                        <span className="text-sm opacity-80 mt-1">Análisis Físico-Biológico</span>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-white/20 flex justify-between items-center text-sm">
+                       <span>Fecha:</span>
+                       <span className="font-mono">{latestReport ? format(new Date(latestReport.createdAt), 'dd/MM/yyyy') : '--'}</span>
+                    </div>
+                 </div>
 
-           {/* Chemical Params */}
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h3 className="text-slate-500 font-bold text-sm uppercase mb-4">Calidad del Agua (Salida)</h3>
-              <div className="space-y-4">
-                 <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                    <span className="font-medium text-slate-700">pH Final</span>
-                    <span className="text-xl font-bold text-slate-800">{getValue('w5')}</span>
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 className="text-slate-500 font-bold text-sm uppercase mb-4 flex items-center">
+                        <TestTube className="h-4 w-4 mr-2 text-indigo-500" />
+                        Resultados de Laboratorio
+                    </h3>
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                          <span className="font-medium text-slate-700">Coliformes</span>
+                          <span className="text-sm font-bold bg-green-100 text-green-700 px-2 py-1 rounded">{getValue('m4')}</span>
+                       </div>
+                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                          <span className="font-medium text-slate-700">Apariencia (Color)</span>
+                          <span className="text-sm font-bold text-slate-800">{getValue('m2')}</span>
+                       </div>
+                       <div className="flex justify-between items-center">
+                          <span className="font-medium text-slate-700">Turbiedad</span>
+                          <span className="text-sm font-bold text-slate-800">{getValue('m3')}</span>
+                       </div>
+                    </div>
                  </div>
-                 <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                    <span className="font-medium text-slate-700">Cloro Residual</span>
-                    <span className="text-xl font-bold text-slate-800">{getValue('w7')}</span>
+               </>
+           ) : (
+               /* --- VISTA DE REPORTE SEMANAL (Físico-Químico) --- */
+               <>
+                 <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                    <Droplets className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10" />
+                    <p className="text-teal-100 text-sm font-medium mb-1">Pureza Final (TDS)</p>
+                    <div className="flex items-baseline space-x-2">
+                       <span className="text-5xl font-bold">{getValue('w9')}</span>
+                       <span className="text-lg opacity-80">ppm</span>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-white/20 flex justify-between items-center text-sm">
+                       <span>Última Medición:</span>
+                       <span className="font-mono">{latestReport ? format(new Date(latestReport.createdAt), 'dd/MM') : '--'}</span>
+                    </div>
                  </div>
-                 <div className="flex justify-between items-center">
-                    <span className="font-medium text-slate-700">Dureza Final</span>
-                    <span className="text-xl font-bold text-slate-800">{getValue('w11')}</span>
+
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 className="text-slate-500 font-bold text-sm uppercase mb-4">Calidad del Agua (Salida)</h3>
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                          <span className="font-medium text-slate-700">pH Final</span>
+                          <span className="text-xl font-bold text-slate-800">{getValue('w5')}</span>
+                       </div>
+                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                          <span className="font-medium text-slate-700">Cloro Residual</span>
+                          <span className="text-xl font-bold text-slate-800">{getValue('w7')}</span>
+                       </div>
+                       <div className="flex justify-between items-center">
+                          <span className="font-medium text-slate-700">Dureza Final</span>
+                          <span className="text-xl font-bold text-slate-800">{getValue('w11')}</span>
+                       </div>
+                    </div>
                  </div>
-              </div>
-           </div>
+               </>
+           )}
+
         </div>
       </div>
       
@@ -180,7 +228,7 @@ export const CondoDashboard: React.FC = () => {
          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
             <h3 className="font-bold text-slate-700 flex items-center">
                <Calendar className="mr-2 h-5 w-5 text-slate-400" />
-               Historial de Mantenimiento Validado
+               Historial Completo
             </h3>
          </div>
          <div className="overflow-x-auto">
@@ -188,6 +236,7 @@ export const CondoDashboard: React.FC = () => {
                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
                   <tr>
                      <th className="px-6 py-3">Fecha</th>
+                     <th className="px-6 py-3">Tipo</th>
                      <th className="px-6 py-3">Técnico</th>
                      <th className="px-6 py-3">Estado</th>
                   </tr>
@@ -196,13 +245,18 @@ export const CondoDashboard: React.FC = () => {
                   {history.map((report) => (
                      <tr key={report.id}>
                         <td className="px-6 py-4">{format(new Date(report.createdAt), "dd/MM/yyyy", { locale: es })}</td>
+                        <td className="px-6 py-4">
+                            <span className={`text-xs font-bold px-2 py-1 rounded ${report.type === 'monthly' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
+                                {report.type === 'monthly' ? 'MENSUAL' : 'SEMANAL'}
+                            </span>
+                        </td>
                         <td className="px-6 py-4">{report.technicianName}</td>
                         <td className="px-6 py-4"><span className="text-green-600 font-bold flex items-center"><CheckCircle className="w-3 h-3 mr-1"/> Validado</span></td>
                      </tr>
                   ))}
                   {history.length === 0 && (
                       <tr>
-                          <td colSpan={3} className="p-6 text-center text-slate-400">No hay historial disponible.</td>
+                          <td colSpan={4} className="p-6 text-center text-slate-400">No hay historial disponible.</td>
                       </tr>
                   )}
                </tbody>
