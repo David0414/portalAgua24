@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
+import { generateReportPDF } from '../services/pdfGenerator';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -54,12 +55,15 @@ export const AdminReview: React.FC = () => {
 
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
 
-  // Helper para volver al dashboard forzando recarga ABSOLUTA a Producción
   const goBackToDashboard = () => {
-      // Usamos window.location.href en lugar de navigate.
-      // Esto fuerza al navegador a ir a la URL correcta, sacando al usuario de cualquier
-      // versión "preview" o link viejo de Vercel.
       window.location.href = `${PRODUCTION_URL}/#/owner/dashboard`;
+  };
+
+  // PDF DOWNLOAD HANDLER
+  const handleDownloadPDF = () => {
+      if (report && machineInfo) {
+          generateReportPDF(report, machineInfo.location);
+      }
   };
 
   const handleApprove = async () => {
@@ -179,7 +183,6 @@ export const AdminReview: React.FC = () => {
                     <p className="text-sm text-green-700">Notifique a las partes involucradas para cerrar el ciclo de servicio.</p>
                 </div>
 
-                {/* BOTÓN 1: TÉCNICO */}
                 <button
                     onClick={sendTechWhatsApp}
                     className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition group"
@@ -196,7 +199,6 @@ export const AdminReview: React.FC = () => {
                     <ExternalLink className="h-4 w-4 text-slate-400" />
                 </button>
                 
-                {/* BOTÓN 2: CONDOMINIO */}
                 {condoContact ? (
                     <button
                         onClick={sendCondoWhatsApp}
@@ -220,7 +222,6 @@ export const AdminReview: React.FC = () => {
                 )}
             </div>
         ) : (
-            // RECHAZADO
              <div className="space-y-4">
                 <button
                     onClick={sendTechWhatsApp}
@@ -243,12 +244,22 @@ export const AdminReview: React.FC = () => {
     );
   }
 
-  // --- REVIEW VIEW (TABLA REDISEÑADA) ---
+  // --- REVIEW VIEW ---
   return (
     <div className="max-w-4xl mx-auto pb-32">
-      <button onClick={goBackToDashboard} className="flex items-center text-slate-500 hover:text-brand-600 mb-4 transition">
-        <ArrowLeft className="h-4 w-4 mr-1" /> Volver
-      </button>
+      <div className="flex justify-between items-center mb-4">
+          <button onClick={goBackToDashboard} className="flex items-center text-slate-500 hover:text-brand-600 transition">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Volver
+          </button>
+          
+          <button 
+             onClick={handleDownloadPDF}
+             className="flex items-center space-x-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition shadow-sm"
+          >
+             <Download className="h-4 w-4" />
+             <span>Descargar PDF</span>
+          </button>
+      </div>
 
       {/* HEADER TIPO REPORTE */}
       <div className="bg-white rounded-t-xl shadow-sm border border-slate-200 border-b-0 p-8 flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden">

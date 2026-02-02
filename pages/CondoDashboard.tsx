@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/db';
-import { Report, ReportStatus } from '../types';
+import { Report, ReportStatus, ChecklistItemDefinition } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle, Droplets, Calendar, Activity, Wind, Info, LogOut, Microscope, TestTube, Eye } from 'lucide-react';
+import { CheckCircle, Droplets, Calendar, Activity, Wind, Info, LogOut, Microscope, TestTube, Eye, FileText, Check, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
 
 export const CondoDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -41,10 +42,13 @@ export const CondoDashboard: React.FC = () => {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       setHistory(machineReports);
+      
+      // Find latest weekly report specifically for the table, regardless of if the absolute latest is monthly
+      const latestWeekly = machineReports.find(r => r.type === 'weekly');
+      // Set the absolute latest for the top cards (might be monthly)
       setLatestReport(machineReports[0] || null);
 
       // 3. Prepare Chart Data (SOLO USAR REPORTES SEMANALES PARA LA GRÁFICA DE TDS)
-      // Los reportes mensuales no tienen TDS numérico, por lo que romperían la gráfica.
       const weeklyReports = machineReports.filter(r => r.type === 'weekly');
       
       const graphData = weeklyReports.slice(0, 10).reverse().map(r => {
@@ -61,9 +65,9 @@ export const CondoDashboard: React.FC = () => {
     if(user) fetch();
   }, [user]);
 
-  const getValue = (itemId: string): string | number => {
-    if (!latestReport) return '-';
-    const item = latestReport.data.find(i => i.itemId === itemId);
+  const getValue = (report: Report | null, itemId: string): string | number => {
+    if (!report) return '-';
+    const item = report.data.find(i => i.itemId === itemId);
     if (!item) return '-';
     if (typeof item.value === 'boolean') return item.value ? 'Sí' : 'No';
     return item.value;
@@ -84,6 +88,32 @@ export const CondoDashboard: React.FC = () => {
   }
 
   const isMonthly = latestReport?.type === 'monthly';
+  
+  // Logic to filter ONLY Exit/Output readings for the Condo Table
+  // We look for "Salida" in the label or specific IDs
+  const getCondoTableData = () => {
+    if (!latestReport) return [];
+    const checklist = latestReport.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
+    
+    return checklist.filter(item => {
+        const label = item.label.toLowerCase();
+        // Mostrar: "Salida", Analisis mensuales, o items criticos
+        return label.includes('salida') || 
+               item.section === 'monthly' ||
+               item.id === 'w12'; // Bombas
+    }).map(item => {
+        const dataItem = latestReport.data.find(d => d.itemId === item.id);
+        return {
+            label: item.label,
+            value: dataItem?.value,
+            reference: item.reference,
+            unit: item.unit,
+            type: item.type
+        };
+    });
+  };
+
+  const condoTableData = getCondoTableData();
 
   return (
     <div className="space-y-8 pb-10">
@@ -145,11 +175,10 @@ export const CondoDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Current Metrics Cards - LOGIC SWITCH BASED ON REPORT TYPE */}
+        {/* Current Metrics Cards */}
         <div className="space-y-6">
-           
            {isMonthly ? (
-               /* --- VISTA DE REPORTE MENSUAL (Laboratorio) --- */
+               /* --- VISTA DE REPORTE MENSUAL --- */
                <>
                  <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
                     <Microscope className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10" />
@@ -163,36 +192,20 @@ export const CondoDashboard: React.FC = () => {
                        <span className="font-mono">{latestReport ? format(new Date(latestReport.createdAt), 'dd/MM/yyyy') : '--'}</span>
                     </div>
                  </div>
-
                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 className="text-slate-500 font-bold text-sm uppercase mb-4 flex items-center">
-                        <TestTube className="h-4 w-4 mr-2 text-indigo-500" />
-                        Resultados de Laboratorio
-                    </h3>
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                          <span className="font-medium text-slate-700">Coliformes</span>
-                          <span className="text-sm font-bold bg-green-100 text-green-700 px-2 py-1 rounded">{getValue('m4')}</span>
-                       </div>
-                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                          <span className="font-medium text-slate-700">Apariencia (Color)</span>
-                          <span className="text-sm font-bold text-slate-800">{getValue('m2')}</span>
-                       </div>
-                       <div className="flex justify-between items-center">
-                          <span className="font-medium text-slate-700">Turbiedad</span>
-                          <span className="text-sm font-bold text-slate-800">{getValue('m3')}</span>
-                       </div>
-                    </div>
+                     <p className="text-sm text-slate-500 mb-2">Resultados Laboratorio:</p>
+                     <div className="text-2xl font-bold text-slate-800 mb-1">{getValue(latestReport, 'm4')}</div>
+                     <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded">Coliformes Totales</span>
                  </div>
                </>
            ) : (
-               /* --- VISTA DE REPORTE SEMANAL (Físico-Químico) --- */
+               /* --- VISTA DE REPORTE SEMANAL --- */
                <>
                  <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
                     <Droplets className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10" />
                     <p className="text-teal-100 text-sm font-medium mb-1">Pureza Final (TDS)</p>
                     <div className="flex items-baseline space-x-2">
-                       <span className="text-5xl font-bold">{getValue('w9')}</span>
+                       <span className="text-5xl font-bold">{getValue(latestReport, 'w9')}</span>
                        <span className="text-lg opacity-80">ppm</span>
                     </div>
                     <div className="mt-4 pt-4 border-t border-white/20 flex justify-between items-center text-sm">
@@ -206,29 +219,79 @@ export const CondoDashboard: React.FC = () => {
                     <div className="space-y-4">
                        <div className="flex justify-between items-center pb-3 border-b border-slate-50">
                           <span className="font-medium text-slate-700">pH Final</span>
-                          <span className="text-xl font-bold text-slate-800">{getValue('w5')}</span>
-                       </div>
-                       <div className="flex justify-between items-center pb-3 border-b border-slate-50">
-                          <span className="font-medium text-slate-700">Cloro Residual</span>
-                          <span className="text-xl font-bold text-slate-800">{getValue('w7')}</span>
+                          <span className="text-xl font-bold text-slate-800">{getValue(latestReport, 'w5')}</span>
                        </div>
                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-slate-700">Dureza Final</span>
-                          <span className="text-xl font-bold text-slate-800">{getValue('w11')}</span>
+                          <span className="font-medium text-slate-700">Cloro Residual</span>
+                          <span className="text-xl font-bold text-slate-800">{getValue(latestReport, 'w7')}</span>
                        </div>
                     </div>
                  </div>
                </>
            )}
-
         </div>
+      </div>
+      
+      {/* --- DETAILED TABLE WITH REFERENCES (NEW SECTION) --- */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-700 flex items-center">
+               <FileText className="mr-2 h-5 w-5 text-indigo-500" />
+               Detalle de Parámetros (Salida)
+            </h3>
+            <span className="text-xs text-slate-400">Valores de Última Visita</span>
+         </div>
+         <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+               <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+                  <tr>
+                     <th className="px-6 py-3">Parámetro</th>
+                     <th className="px-6 py-3 text-center">Referencia Ideal</th>
+                     <th className="px-6 py-3 text-center">Resultado</th>
+                     <th className="px-6 py-3 text-center">Estado</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-100">
+                  {condoTableData.length > 0 ? condoTableData.map((row, idx) => (
+                     <tr key={idx} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4 font-medium text-slate-700">{row.label}</td>
+                        <td className="px-6 py-4 text-center font-mono text-slate-500 text-xs">
+                           {row.reference || '-'} {row.unit}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                           <span className="font-bold text-slate-800">
+                               {row.type === 'boolean' 
+                                 ? (row.value ? 'Cumple' : 'No Cumple') 
+                                 : `${row.value || '--'} ${row.unit || ''}`}
+                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                            {(row.value !== undefined && row.value !== '') ? (
+                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700">
+                                    <Check className="w-3 h-3 mr-1" /> OK
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-slate-100 text-slate-400">
+                                    <AlertCircle className="w-3 h-3 mr-1" /> N/A
+                                </span>
+                            )}
+                        </td>
+                     </tr>
+                  )) : (
+                      <tr>
+                          <td colSpan={4} className="p-6 text-center text-slate-400">No hay datos de salida disponibles en el último reporte.</td>
+                      </tr>
+                  )}
+               </tbody>
+            </table>
+         </div>
       </div>
       
        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
             <h3 className="font-bold text-slate-700 flex items-center">
                <Calendar className="mr-2 h-5 w-5 text-slate-400" />
-               Historial Completo
+               Historial de Visitas
             </h3>
          </div>
          <div className="overflow-x-auto">
@@ -254,11 +317,6 @@ export const CondoDashboard: React.FC = () => {
                         <td className="px-6 py-4"><span className="text-green-600 font-bold flex items-center"><CheckCircle className="w-3 h-3 mr-1"/> Validado</span></td>
                      </tr>
                   ))}
-                  {history.length === 0 && (
-                      <tr>
-                          <td colSpan={4} className="p-6 text-center text-slate-400">No hay historial disponible.</td>
-                      </tr>
-                  )}
                </tbody>
             </table>
          </div>

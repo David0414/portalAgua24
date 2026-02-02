@@ -1,40 +1,74 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { QrCode, ArrowRight, Loader2, Camera } from 'lucide-react';
+import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle } from 'lucide-react';
 import { api } from '../services/db';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export const TechScan: React.FC = () => {
   const navigate = useNavigate();
   const [machineId, setMachineId] = useState('');
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // NOTE: For Real QR Scanning
-  // 1. Install 'html5-qrcode': npm install html5-qrcode
-  // 2. Import Html5QrcodeScanner
-  // 3. Render the scanner in a div with id="reader"
-  
-  const handleScanClick = () => {
-    setScanning(true);
-    // Here you would initialize the real camera scanner.
-    // For now, in this standard version, we toggle the UI to prompt manual entry 
-    // or indicate camera permissions would be requested here.
-    setError("Para usar el escáner real, se requiere instalar la librería 'html5-qrcode'. Por favor ingrese el ID manualmente.");
+  useEffect(() => {
+    let scanner: any = null;
+
+    if (scanning) {
+        // Inicializar el escáner cuando el estado scanning es true
+        scanner = new Html5QrcodeScanner(
+            "reader",
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            /* verbose= */ false
+        );
+
+        scanner.render(async (decodedText: string) => {
+            // Éxito al escanear
+            console.log("QR Code detected:", decodedText);
+            
+            // Limpiar escáner
+            scanner.clear();
+            setScanning(false);
+            
+            // Procesar ID
+            handleProcessId(decodedText);
+        }, (errorMessage: any) => {
+            // Error de escaneo (común mientras busca, ignorar)
+        });
+    }
+
+    return () => {
+        if (scanner) {
+            scanner.clear().catch((error: any) => console.error("Failed to clear scanner", error));
+        }
+    };
+  }, [scanning]);
+
+  const handleProcessId = async (id: string) => {
+      setLoading(true);
+      setError('');
+      
+      const cleanId = id.trim();
+      setMachineId(cleanId); // Actualizar input visualmente
+
+      try {
+          const machine = await api.getMachine(cleanId);
+          if (machine) {
+              navigate(`/tech/start/${cleanId}`);
+          } else {
+              setError(`La máquina con ID "${cleanId}" no existe en el sistema.`);
+          }
+      } catch (e) {
+          setError("Error de conexión al verificar la máquina.");
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    
-    setScanning(true); // Show loading state
-    const machine = await api.getMachine(machineId);
-    setScanning(false);
-    
-    if (machine) {
-      navigate(`/tech/start/${machineId}`);
-    } else {
-      setError('Máquina no encontrada. Verifique el ID.');
-    }
+    if (!machineId) return;
+    handleProcessId(machineId);
   };
 
   return (
@@ -47,30 +81,33 @@ export const TechScan: React.FC = () => {
           Escanear Máquina
         </h2>
         <p className="text-slate-500 text-center mt-2">
-          Ingrese el ID de la máquina o use el código QR.
+          Escanea el código QR pegado en la máquina o ingresa su ID manualmente.
         </p>
       </div>
 
       <div className="space-y-6">
-        {/* Placeholder for QR Camera */}
-        {scanning && (
-            <div id="reader" className="bg-black rounded-lg h-64 flex items-center justify-center text-white mb-4">
-                <div className="text-center p-4">
-                   <Camera className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                   <p className="text-sm">Vista de Cámara</p>
-                   <p className="text-xs text-slate-400 mt-2">(Requiere integración de librería)</p>
-                </div>
+        {/* Lector de QR */}
+        {scanning ? (
+            <div className="bg-black rounded-lg overflow-hidden relative">
+                 <button 
+                    onClick={() => setScanning(false)}
+                    className="absolute top-2 right-2 z-10 bg-white/20 p-2 rounded-full text-white hover:bg-white/40"
+                 >
+                    <X className="h-5 w-5" />
+                 </button>
+                 <div id="reader" className="w-full"></div>
+                 <p className="text-white text-center text-xs py-2">Apunta la cámara al código QR</p>
             </div>
+        ) : (
+            <button
+                type="button"
+                onClick={() => setScanning(true)}
+                className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition transform hover:scale-[1.02]"
+            >
+                <Camera className="mr-2 h-6 w-6" />
+                Activar Cámara
+            </button>
         )}
-
-        <button
-            type="button"
-            onClick={handleScanClick}
-            className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition transform hover:scale-[1.02]"
-        >
-            <QrCode className="mr-2 h-6 w-6" />
-            Activar Cámara
-        </button>
 
         <div className="relative flex py-2 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
@@ -90,23 +127,28 @@ export const TechScan: React.FC = () => {
                 onChange={(e) => setMachineId(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 uppercase"
                 placeholder="Ej: M-001"
-                autoFocus
+                disabled={loading}
                 />
             </div>
 
             {error && (
-                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-200">
-                {error}
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-200 flex items-center">
+                   <AlertTriangle className="h-4 w-4 mr-2" />
+                   {error}
                 </div>
             )}
 
             <button
                 type="submit"
-                disabled={!machineId}
+                disabled={!machineId || loading}
                 className="w-full flex justify-center py-2 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 disabled:opacity-50"
             >
-                Continuar
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
+                    <>
+                        Continuar
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                )}
             </button>
         </form>
       </div>

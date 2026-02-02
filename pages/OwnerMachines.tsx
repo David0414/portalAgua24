@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/db';
 import { Machine } from '../types';
-import { ArrowLeft, Plus, Trash2, MapPin, Server, QrCode } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, MapPin, Server, QrCode, X, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'react-qr-code';
 
 export const OwnerMachines: React.FC = () => {
   const navigate = useNavigate();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
+  const [qrModalMachine, setQrModalMachine] = useState<Machine | null>(null);
 
   // Form State
   const [newId, setNewId] = useState('');
@@ -49,6 +51,22 @@ export const OwnerMachines: React.FC = () => {
       await api.deleteMachine(id);
       fetchMachines();
     }
+  };
+
+  // Función para imprimir el QR
+  const handlePrintQR = () => {
+      const printContent = document.getElementById('qr-print-area');
+      if(printContent) {
+          const win = window.open('', '', 'height=600,width=800');
+          if (win) {
+              win.document.write('<html><head><title>Imprimir QR</title>');
+              win.document.write('</head><body style="text-align:center; font-family: sans-serif;">');
+              win.document.write(printContent.innerHTML);
+              win.document.write('</body></html>');
+              win.document.close();
+              win.print();
+          }
+      }
   };
 
   return (
@@ -156,7 +174,7 @@ export const OwnerMachines: React.FC = () => {
                   {machine.lastMaintenance || 'Sin registro'}
                 </div>
                 <button 
-                   onClick={() => alert(`Generar QR para ${machine.id}: funcionaldiad pendiente`)}
+                   onClick={() => setQrModalMachine(machine)}
                    className="text-indigo-600 text-xs font-bold flex items-center hover:underline bg-indigo-50 px-2 py-1 rounded"
                 >
                   <QrCode className="h-3 w-3 mr-1" />
@@ -167,6 +185,45 @@ export const OwnerMachines: React.FC = () => {
           ))
         )}
       </div>
+
+      {/* MODAL VISUALIZAR QR */}
+      {qrModalMachine && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative">
+              <button 
+                  onClick={() => setQrModalMachine(null)}
+                  className="absolute top-4 right-4 bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition"
+              >
+                  <X className="h-5 w-5 text-slate-500" />
+              </button>
+
+              <div id="qr-print-area" className="flex flex-col items-center justify-center py-6">
+                   <h3 className="text-xl font-bold text-slate-900 mb-1">Agua/24</h3>
+                   <p className="text-sm text-slate-500 mb-6 uppercase tracking-widest font-bold">Escaneo de Servicio</p>
+                   
+                   <div className="p-4 bg-white border-4 border-slate-900 rounded-xl">
+                       <QRCode 
+                          value={qrModalMachine.id} 
+                          size={180}
+                       />
+                   </div>
+
+                   <div className="mt-4 text-center">
+                       <p className="text-2xl font-black text-slate-900">{qrModalMachine.id}</p>
+                       <p className="text-sm text-slate-500">{qrModalMachine.location}</p>
+                   </div>
+              </div>
+
+              <button 
+                  onClick={handlePrintQR}
+                  className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold flex items-center justify-center hover:bg-slate-800 transition"
+              >
+                  <Download className="mr-2 h-5 w-5" />
+                  Imprimir Etiqueta
+              </button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
