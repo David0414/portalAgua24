@@ -26,6 +26,8 @@ export interface ChecklistItemDefinition {
   type: 'boolean' | 'number' | 'text' | 'photo';
   required: boolean;
   section: 'weekly' | 'monthly';
+  reference?: string; // Valores ideales (Ej: "6.5 - 8.5")
+  unit?: string; // Unidad de medida (Ej: "ppm")
 }
 
 export interface ChecklistValue {

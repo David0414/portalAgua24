@@ -18,3 +18,8 @@ export const generateTechEditLink = (reportId: string, machineId: string) => {
 export const generateStartVisitMessage = (machineLocation: string, techName: string) => {
   return `👋 Hola, soy el técnico ${techName}.\n\n📍 Estoy llegando a *${machineLocation}* para realizar el mantenimiento programado del sistema de purificación.\n\nLe notificaré cuando haya finalizado.`;
 };
+
+export const generateCondoReportMessage = (machineId: string, location: string, date: string, tds: string, ph: string) => {
+    const baseUrl = window.location.origin;
+    return `✅ *Mantenimiento Finalizado*\n\nEstimado cliente, el servicio de purificación en *${location}* (ID: ${machineId}) ha sido completado y validado exitosamente hoy ${date}.\n\n📊 *Resumen de Calidad:*\n🔹 TDS (Pureza): ${tds} ppm\n🔹 pH: ${ph}\n\n📄 Puede descargar su reporte detallado y consultar el historial ingresando a su portal:\n${baseUrl}/#/login/condo\n\n_Agua/24 - Siempre pura._`;
+};

@@ -1,25 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
-import { Report, ReportStatus } from '../types';
+import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle } from 'lucide-react';
-import { sendWhatsAppNotification, generateTechEditLink } from '../services/whatsapp';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building } from 'lucide-react';
+import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage } from '../services/whatsapp';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export const AdminReview: React.FC = () => {
   const { reportId } = useParams<{ reportId: string }>();
   const navigate = useNavigate();
   const [report, setReport] = useState<Report | null>(null);
-  const [loadingAction, setLoadingAction] = useState(false); // New loading state for buttons
+  const [loadingAction, setLoadingAction] = useState(false);
+  const [condoContact, setCondoContact] = useState<User | null>(null);
+  const [machineInfo, setMachineInfo] = useState<{location: string} | null>(null);
   
   // Modal states
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
-  
-  // Delete Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   
-  // Success/Simulation State
+  // Success State
   const [outcome, setOutcome] = useState<{
     status: ReportStatus;
     message: string;
@@ -27,9 +29,25 @@ export const AdminReview: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    if (reportId) {
-      api.getReportById(reportId).then(setReport);
-    }
+    const loadData = async () => {
+      if (reportId) {
+        const r = await api.getReportById(reportId);
+        setReport(r || null);
+
+        if (r) {
+            // Fetch Machine Info & Condo Contact
+            const machine = await api.getMachine(r.machineId);
+            setMachineInfo(machine || null);
+            
+            if (machine && machine.assignedToUserId) {
+                const users = await api.getUsers();
+                const condoUser = users.find(u => u.id === machine.assignedToUserId);
+                setCondoContact(condoUser || null);
+            }
+        }
+      }
+    };
+    loadData();
   }, [reportId]);
 
   if (!report) return <div className="p-8 text-center flex justify-center"><Loader2 className="animate-spin text-brand-600" /></div>;
@@ -93,17 +111,37 @@ export const AdminReview: React.FC = () => {
     }
   };
 
-  const sendRealWhatsApp = () => {
+  // WhatsApp Functions
+  const sendTechWhatsApp = () => {
     if (outcome && report) {
       sendWhatsAppNotification(report.technicianId, outcome.message);
     }
+  };
+
+  const sendCondoWhatsApp = () => {
+    if (!report || !machineInfo || !condoContact?.phone) return;
+    
+    // Extract key values for the summary
+    const tdsVal = report.data.find(d => d.itemId === 'w9')?.value || 'N/A';
+    const phVal = report.data.find(d => d.itemId === 'w5')?.value || 'N/A';
+    const dateStr = format(new Date(), "d 'de' MMMM", { locale: es });
+
+    const msg = generateCondoReportMessage(
+        report.machineId, 
+        machineInfo.location, 
+        dateStr,
+        tdsVal.toString(),
+        phVal.toString()
+    );
+
+    sendWhatsAppNotification(condoContact.phone, msg);
   };
 
   const getValue = (itemId: string) => {
     return report.data.find(d => d.itemId === itemId);
   };
 
-  // --- SUCCESS VIEW ---
+  // --- SUCCESS VIEW (DOBLE NOTIFICACIÓN) ---
   if (outcome) {
     return (
       <div className="max-w-xl mx-auto mt-10 p-8 bg-white rounded-2xl shadow-xl text-center border-t-8 border-indigo-500 animate-in fade-in zoom-in duration-300">
@@ -121,116 +159,211 @@ export const AdminReview: React.FC = () => {
           {outcome.status === ReportStatus.APPROVED ? 'Reporte Aprobado' : 'Reporte Rechazado'}
         </h2>
         <p className="text-slate-500 mb-6">
-          La base de datos ha sido actualizada.
+          Base de datos actualizada correctamente.
         </p>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-8 text-left text-sm font-mono text-slate-600 whitespace-pre-wrap shadow-inner">
-          {outcome.message}
-        </div>
+        {outcome.status === ReportStatus.APPROVED ? (
+            <div className="space-y-4">
+                <div className="bg-green-50 p-4 rounded-lg border border-green-100 text-left mb-6">
+                    <h4 className="font-bold text-green-800 flex items-center mb-2">
+                        <Share2 className="h-4 w-4 mr-2"/> Siguientes Pasos
+                    </h4>
+                    <p className="text-sm text-green-700">Notifique a las partes involucradas para cerrar el ciclo de servicio.</p>
+                </div>
 
-        <div className="space-y-4">
-           <button
-             onClick={sendRealWhatsApp}
-             className="w-full flex items-center justify-center space-x-2 bg-green-500 text-white px-4 py-3 rounded-xl font-bold hover:bg-green-600 transition shadow-lg"
-           >
-             <MessageCircle className="h-5 w-5" />
-             <span>Notificar al Técnico por WhatsApp</span>
-           </button>
+                {/* BOTÓN 1: TÉCNICO */}
+                <button
+                    onClick={sendTechWhatsApp}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition group"
+                >
+                    <div className="flex items-center">
+                        <div className="bg-brand-100 p-2 rounded-full mr-3 group-hover:bg-brand-200 transition">
+                             <MessageCircle className="h-5 w-5 text-brand-600" />
+                        </div>
+                        <div className="text-left">
+                            <span className="block font-bold text-slate-700">1. Avisar al Técnico</span>
+                            <span className="text-xs text-slate-400">Confirmar validación</span>
+                        </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-slate-400" />
+                </button>
+                
+                {/* BOTÓN 2: CONDOMINIO */}
+                {condoContact ? (
+                    <button
+                        onClick={sendCondoWhatsApp}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-teal-50 border border-teal-200 rounded-xl hover:bg-teal-100 transition group shadow-sm"
+                    >
+                        <div className="flex items-center">
+                            <div className="bg-teal-200 p-2 rounded-full mr-3 group-hover:bg-teal-300 transition">
+                                <Building className="h-5 w-5 text-teal-800" />
+                            </div>
+                            <div className="text-left">
+                                <span className="block font-bold text-teal-900">2. Enviar Reporte al Cliente</span>
+                                <span className="text-xs text-teal-600">Compartir PDF/Link WhatsApp</span>
+                            </div>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-teal-500" />
+                    </button>
+                ) : (
+                    <div className="p-3 bg-slate-50 text-slate-400 text-xs rounded-lg text-left">
+                        * No hay usuario de condominio asignado para notificar.
+                    </div>
+                )}
+            </div>
+        ) : (
+            // RECHAZADO
+             <div className="space-y-4">
+                <button
+                    onClick={sendTechWhatsApp}
+                    className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-lg"
+                >
+                    <AlertTriangle className="h-5 w-5" />
+                    <span>Enviar Correcciones al Técnico</span>
+                </button>
+             </div>
+        )}
            
-           <button
-             onClick={() => navigate('/owner/dashboard')}
-             className="w-full flex items-center justify-center space-x-2 bg-slate-200 text-slate-700 px-4 py-3 rounded-xl font-bold hover:bg-slate-300 transition"
-           >
-             <ArrowLeft className="h-5 w-5" />
-             <span>Volver al Dashboard</span>
-           </button>
-        </div>
+        <button
+            onClick={() => navigate('/owner/dashboard')}
+            className="w-full flex items-center justify-center space-x-2 text-slate-500 px-4 py-3 rounded-xl font-medium hover:bg-slate-50 transition mt-4"
+        >
+            <ArrowLeft className="h-5 w-5" />
+            <span>Volver al Dashboard</span>
+        </button>
       </div>
     );
   }
 
-  // --- REVIEW VIEW ---
+  // --- REVIEW VIEW (TABLA REDISEÑADA) ---
   return (
     <div className="max-w-4xl mx-auto pb-32">
       <button onClick={() => navigate('/owner/dashboard')} className="flex items-center text-slate-500 hover:text-brand-600 mb-4 transition">
-        <ArrowLeft className="h-4 w-4 mr-1" /> Volver al Dashboard
+        <ArrowLeft className="h-4 w-4 mr-1" /> Volver
       </button>
 
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-        <div className="bg-slate-800 text-white p-6 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold">Revisión de Reporte</h1>
-            <p className="text-slate-400 text-sm">ID: {report.id.substring(0,8)}... | {report.technicianName}</p>
-          </div>
-          <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => setDeleteModalOpen(true)}
-                className="p-2 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white rounded-lg transition"
-                title="Eliminar Reporte"
-              >
-                 <Trash2 className="h-5 w-5" />
-              </button>
-              
-              <div className={`px-3 py-1 rounded text-sm font-bold ${
-                report.status === ReportStatus.PENDING ? 'bg-amber-500 text-white' :
-                report.status === ReportStatus.APPROVED ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-              }`}>
-                {report.status === ReportStatus.PENDING ? 'PENDIENTE' : 
-                report.status === ReportStatus.APPROVED ? 'APROBADO' : 'RECHAZADO'}
-              </div>
-          </div>
+      {/* HEADER TIPO REPORTE */}
+      <div className="bg-white rounded-t-xl shadow-sm border border-slate-200 border-b-0 p-8 flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 to-indigo-600"></div>
+        
+        <div>
+           <div className="flex items-center space-x-3 mb-2">
+              <FileText className="h-6 w-6 text-brand-600" />
+              <h1 className="text-2xl font-bold text-slate-800 uppercase tracking-wide">Certificado de Servicio</h1>
+           </div>
+           <p className="text-slate-500">Máquina: <span className="font-bold text-slate-900">{machineInfo?.location || report.machineId}</span></p>
+           <p className="text-xs text-slate-400 mt-1">ID: {report.machineId} • Fecha: {format(new Date(report.createdAt), "dd/MM/yyyy HH:mm")}</p>
         </div>
 
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-           {checklistDef.map(item => {
-             const data = getValue(item.id);
-             return (
-               <div key={item.id} className="border-b border-slate-100 pb-4">
-                 <p className="text-sm font-medium text-slate-500 mb-1">{item.label}</p>
-                 <div className="flex justify-between items-start">
-                   <div className="font-semibold text-slate-800 text-lg">
-                      {item.type === 'boolean' 
-                        ? (data?.value 
-                            ? <span className="inline-flex items-center text-green-600 bg-green-50 px-2 py-0.5 rounded"><Check className="w-4 h-4 mr-1"/> Correcto</span> 
-                            : <span className="inline-flex items-center text-red-600 bg-red-50 px-2 py-0.5 rounded"><X className="w-4 h-4 mr-1"/> Incorrecto</span>)
-                        : (item.type === 'number' && item.id === 'w13' ? `$${data?.value}` : data?.value || <span className="text-slate-300 italic">Sin dato</span>)
-                      }
-                   </div>
-                   {data?.photoUrl && (
-                     <div className="relative group">
-                        <img 
-                          src={data.photoUrl} 
-                          alt="Evidencia" 
-                          className="h-20 w-20 object-cover rounded border border-slate-300 cursor-pointer shadow-sm group-hover:shadow-md transition"
-                          onClick={() => window.open(data.photoUrl, '_blank')}
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition rounded pointer-events-none"></div>
-                     </div>
-                   )}
-                 </div>
-               </div>
-             )
-           })}
+        <div className="mt-4 md:mt-0 flex flex-col items-end">
+            <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-2 ${
+                report.status === ReportStatus.PENDING ? 'bg-amber-100 text-amber-700' :
+                report.status === ReportStatus.APPROVED ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}>
+                {report.status === ReportStatus.PENDING ? 'Por Validar' : 
+                report.status === ReportStatus.APPROVED ? 'Validado' : 'Rechazado'}
+            </div>
+            <p className="text-xs text-slate-500 text-right">Técnico: <span className="font-medium">{report.technicianName}</span></p>
+            <button 
+                onClick={() => setDeleteModalOpen(true)}
+                className="text-red-300 hover:text-red-500 text-xs flex items-center mt-2 transition"
+            >
+                <Trash2 className="h-3 w-3 mr-1" /> Eliminar Reporte
+            </button>
         </div>
       </div>
 
+      {/* TABLA DE RESULTADOS */}
+      <div className="bg-white shadow-lg border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                        <th className="p-4 font-bold">Parámetro de Control</th>
+                        <th className="p-4 font-bold text-center">Referencia (Ideal)</th>
+                        <th className="p-4 font-bold text-center">Resultado (Real)</th>
+                        <th className="p-4 font-bold text-center">Estado</th>
+                        <th className="p-4 font-bold text-center">Evidencia</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                    {checklistDef.map((item, idx) => {
+                         const data = getValue(item.id);
+                         const val = data?.value;
+                         const isBool = item.type === 'boolean';
+                         const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                         
+                         return (
+                            <tr key={item.id} className={`${rowBg} hover:bg-indigo-50/30 transition`}>
+                                <td className="p-4 font-medium text-slate-700">
+                                    {item.label}
+                                </td>
+                                <td className="p-4 text-center text-slate-400 font-mono text-xs">
+                                    {item.reference || '-'} {item.unit}
+                                </td>
+                                <td className="p-4 text-center">
+                                    <span className={`font-bold text-base ${
+                                        item.id === 'w13' ? 'text-emerald-600' : 'text-slate-800'
+                                    }`}>
+                                        {isBool ? (val ? 'Cumple' : 'No Cumple') : (
+                                            item.id === 'w13' ? `$${val}` : `${val || '--'} ${item.unit || ''}`
+                                        )}
+                                    </span>
+                                </td>
+                                <td className="p-4 text-center">
+                                    {isBool ? (
+                                        val ? <Check className="h-5 w-5 text-green-500 mx-auto" /> : <X className="h-5 w-5 text-red-500 mx-auto" />
+                                    ) : (
+                                        (val !== undefined && val !== '') ? <Check className="h-5 w-5 text-green-500 mx-auto opacity-50" /> : <span className="text-slate-300">-</span>
+                                    )}
+                                </td>
+                                <td className="p-4 text-center">
+                                    {data?.photoUrl ? (
+                                        <div className="relative group inline-block">
+                                            <img 
+                                            src={data.photoUrl} 
+                                            alt="Evidencia" 
+                                            className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:scale-150 transition z-10 relative bg-white"
+                                            onClick={() => window.open(data.photoUrl, '_blank')}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-slate-300 italic">Sin foto</span>
+                                    )}
+                                </td>
+                            </tr>
+                         );
+                    })}
+                </tbody>
+            </table>
+        </div>
+      </div>
+      
+      {/* COMENTARIOS ADICIONALES (SI EXISTEN) */}
+      {report.data.length > checklistDef.length && (
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+              <strong>Nota:</strong> Este reporte contiene campos adicionales o de una versión anterior del checklist.
+          </div>
+      )}
+
+      {/* ACTIONS FOOTER */}
       {report.status === ReportStatus.PENDING && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
           <div className="max-w-4xl mx-auto flex space-x-4">
             <button 
               onClick={() => setRejectModalOpen(true)}
               disabled={loadingAction}
-              className="flex-1 bg-red-50 text-red-700 border border-red-200 py-3 rounded-lg font-bold hover:bg-red-100 flex justify-center items-center transition disabled:opacity-50"
+              className="flex-1 bg-white text-red-600 border border-red-200 py-3 rounded-xl font-bold hover:bg-red-50 flex justify-center items-center transition disabled:opacity-50"
             >
               <X className="mr-2" /> Rechazar
             </button>
             <button 
               onClick={handleApprove}
               disabled={loadingAction}
-              className="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 flex justify-center items-center shadow-lg hover:shadow-xl transition disabled:opacity-70"
+              className="flex-[2] bg-gradient-to-r from-brand-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-brand-700 hover:to-indigo-700 flex justify-center items-center shadow-lg hover:shadow-xl transition disabled:opacity-70 transform hover:-translate-y-0.5"
             >
               {loadingAction ? <Loader2 className="mr-2 animate-spin" /> : <Check className="mr-2" />}
-              {loadingAction ? 'Procesando...' : 'Aprobar Reporte'}
+              {loadingAction ? 'Procesando...' : 'Validar y Emitir Certificado'}
             </button>
           </div>
         </div>
