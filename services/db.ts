@@ -33,8 +33,6 @@ export const api = {
             // Lógica para usuarios de condominio que no usan email
             if (!email.includes('@')) {
                 // Buscamos por el nombre de usuario (asumimos que lo guardamos en el campo email para simplificar en este modo bypass)
-                // Ojo: En el script SQL, el campo es 'email'. 
-                // Si es condominio, el identificador 'torre-a' se buscará.
             }
 
             console.log("🔍 Buscando usuario en tabla app_users:", email);
@@ -238,11 +236,18 @@ export const api = {
     }
   },
 
-  // --- Report Methods (Sin cambios) ---
+  // --- Report Methods (CORREGIDO ORDENAMIENTO) ---
 
   getAllReports: async (): Promise<Report[]> => {
     if (USE_SUPABASE) {
-        const { data } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+        // CORRECCIÓN: Usar 'createdAt' (camelCase) en lugar de 'created_at'
+        const { data, error } = await supabase.from('reports').select('*').order('createdAt', { ascending: false });
+        
+        if (error) {
+            console.error("Error al obtener reportes:", error);
+            // Si hay error en la DB, retornamos vacío para no romper la app, pero logueamos
+            return [];
+        }
         return data as unknown as Report[] || [];
     } else {
         return getDb().reports;
