@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink } from '../services/whatsapp';
 
 export const AdminReview: React.FC = () => {
@@ -15,6 +15,9 @@ export const AdminReview: React.FC = () => {
   // Modal states
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  
+  // Delete Modal State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   
   // Success/Simulation State
   const [outcome, setOutcome] = useState<{
@@ -34,15 +37,12 @@ export const AdminReview: React.FC = () => {
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
 
   const handleApprove = async () => {
-    // Removed window.confirm to prevent browser blocking issues
     setLoadingAction(true);
     try {
       await api.reviewReport(report.id, ReportStatus.APPROVED);
       
-      // Construct Message
       const msgTech = `✅ *Reporte Aprobado*\nTu mantenimiento de la máquina ${report.machineId} ha sido validado correctamente.`;
       
-      // Set Outcome for Simulation Screen
       setOutcome({
         status: ReportStatus.APPROVED,
         message: msgTech
@@ -62,13 +62,11 @@ export const AdminReview: React.FC = () => {
     try {
       await api.reviewReport(report.id, ReportStatus.REJECTED, rejectReason);
       
-      // Construct Message & Link
       const editLink = generateTechEditLink(report.id, report.machineId);
       const msgTech = `❌ *Reporte Rechazado*\nHay observaciones en tu mantenimiento de ${report.machineId}:\n_"${rejectReason}"_\n\nPor favor corrige aquí: ${editLink}`;
       
       setRejectModalOpen(false);
       
-      // Set Outcome for Simulation Screen
       setOutcome({
         status: ReportStatus.REJECTED,
         message: msgTech,
@@ -79,6 +77,19 @@ export const AdminReview: React.FC = () => {
       alert("Hubo un error al rechazar el reporte.");
     } finally {
       setLoadingAction(false);
+    }
+  };
+
+  const handleDeleteReport = async () => {
+    setLoadingAction(true);
+    try {
+        await api.deleteReport(report.id);
+        navigate('/owner/dashboard');
+    } catch (error) {
+        console.error("Error deleting:", error);
+        alert("No se pudo eliminar el reporte.");
+        setLoadingAction(false);
+        setDeleteModalOpen(false);
     }
   };
 
@@ -113,7 +124,6 @@ export const AdminReview: React.FC = () => {
           La base de datos ha sido actualizada.
         </p>
 
-        {/* The Message Preview */}
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-8 text-left text-sm font-mono text-slate-600 whitespace-pre-wrap shadow-inner">
           {outcome.message}
         </div>
@@ -141,7 +151,7 @@ export const AdminReview: React.FC = () => {
 
   // --- REVIEW VIEW ---
   return (
-    <div className="max-w-4xl mx-auto pb-32"> {/* Added padding bottom so footer doesn't hide content */}
+    <div className="max-w-4xl mx-auto pb-32">
       <button onClick={() => navigate('/owner/dashboard')} className="flex items-center text-slate-500 hover:text-brand-600 mb-4 transition">
         <ArrowLeft className="h-4 w-4 mr-1" /> Volver al Dashboard
       </button>
@@ -152,12 +162,22 @@ export const AdminReview: React.FC = () => {
             <h1 className="text-xl font-bold">Revisión de Reporte</h1>
             <p className="text-slate-400 text-sm">ID: {report.id.substring(0,8)}... | {report.technicianName}</p>
           </div>
-          <div className={`px-3 py-1 rounded text-sm font-bold ${
-            report.status === ReportStatus.PENDING ? 'bg-amber-500 text-white' :
-            report.status === ReportStatus.APPROVED ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-          }`}>
-            {report.status === ReportStatus.PENDING ? 'PENDIENTE' : 
-             report.status === ReportStatus.APPROVED ? 'APROBADO' : 'RECHAZADO'}
+          <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => setDeleteModalOpen(true)}
+                className="p-2 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white rounded-lg transition"
+                title="Eliminar Reporte"
+              >
+                 <Trash2 className="h-5 w-5" />
+              </button>
+              
+              <div className={`px-3 py-1 rounded text-sm font-bold ${
+                report.status === ReportStatus.PENDING ? 'bg-amber-500 text-white' :
+                report.status === ReportStatus.APPROVED ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+              }`}>
+                {report.status === ReportStatus.PENDING ? 'PENDIENTE' : 
+                report.status === ReportStatus.APPROVED ? 'APROBADO' : 'RECHAZADO'}
+              </div>
           </div>
         </div>
 
@@ -247,6 +267,40 @@ export const AdminReview: React.FC = () => {
                 {loadingAction && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Confirmar Rechazo
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900 bg-opacity-70 flex items-center justify-center p-4 z-[60] animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl border-t-4 border-red-600">
+            <div className="flex flex-col items-center text-center">
+                <div className="bg-red-100 p-3 rounded-full mb-4">
+                    <AlertTriangle className="h-8 w-8 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">¿Eliminar Reporte?</h3>
+                <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                    Esta acción eliminará permanentemente el reporte de la base de datos. <br/><strong>No se puede deshacer.</strong>
+                </p>
+                
+                <div className="flex w-full space-x-3">
+                    <button 
+                        onClick={() => setDeleteModalOpen(false)}
+                        disabled={loadingAction}
+                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-bold hover:bg-slate-50 transition"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={handleDeleteReport}
+                        disabled={loadingAction}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow-md transition flex justify-center items-center"
+                    >
+                        {loadingAction ? <Loader2 className="animate-spin h-4 w-4" /> : 'Sí, Eliminar'}
+                    </button>
+                </div>
             </div>
           </div>
         </div>

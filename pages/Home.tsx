@@ -5,17 +5,22 @@ import { useAuth } from '../contexts/AuthContext';
 import { Role } from '../types';
 
 export const Home: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirección inteligente si ya hay sesión iniciada
+  // Redirección robusta si ya hay sesión iniciada
   useEffect(() => {
-    if (user) {
-      if (user.role === Role.OWNER) navigate('/owner/dashboard');
-      else if (user.role === Role.CONDO_ADMIN) navigate('/condo/dashboard');
-      else if (user.role === Role.TECHNICIAN) navigate('/tech/scan');
+    if (!isLoading && user) {
+      console.log("⚡ Sesión detectada en Home, redirigiendo...");
+      if (user.role === Role.OWNER) navigate('/owner/dashboard', { replace: true });
+      else if (user.role === Role.CONDO_ADMIN) navigate('/condo/dashboard', { replace: true });
+      else if (user.role === Role.TECHNICIAN) navigate('/tech/scan', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, isLoading, navigate]);
+
+  if (isLoading) {
+      return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400">Cargando...</div>;
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[85vh] space-y-12 relative px-4">

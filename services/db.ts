@@ -322,5 +322,16 @@ export const api = {
         saveDb(db);
         return updatedReport;
     }
+  },
+
+  deleteReport: async (id: string): Promise<void> => {
+      if (USE_SUPABASE) {
+          const { error } = await supabase.from('reports').delete().eq('id', id);
+          if (error) throw error;
+      } else {
+          const db = getDb();
+          db.reports = db.reports.filter((r: Report) => r.id !== id);
+          saveDb(db);
+      }
   }
 };
