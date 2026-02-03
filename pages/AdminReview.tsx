@@ -73,8 +73,11 @@ export const AdminReview: React.FC = () => {
       await api.reviewReport(report.id, ReportStatus.APPROVED);
       
       // 2. Auto-Download PDF for the Owner
+      // IMPORTANTE: Creamos un objeto actualizado manualmente porque el state 'report' 
+      // todavía tiene el status viejo (PENDING) en este momento del ciclo.
       if (machineInfo) {
-          generateReportPDF(report, machineInfo.location);
+          const approvedReport = { ...report, status: ReportStatus.APPROVED };
+          generateReportPDF(approvedReport, machineInfo.location);
       }
       
       const msgTech = `✅ *Reporte Aprobado*\nTu mantenimiento de la máquina ${report.machineId} ha sido validado correctamente.`;
