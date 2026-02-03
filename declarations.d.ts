@@ -60,3 +60,6 @@ declare module 'react-qr-code' {
     const QRCodeComponent: import('react').FC<QRCodeProps>;
     export default QRCodeComponent;
 }
+
+
+"df"
