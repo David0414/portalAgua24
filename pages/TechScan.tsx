@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle } from 'lucide-react';
 import { api } from '../services/db';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 export const TechScan: React.FC = () => {
   const navigate = useNavigate();
@@ -10,63 +10,70 @@ export const TechScan: React.FC = () => {
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(false);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  
+  // Referencia a la instancia del scanner para poder limpiarla correctamente
+  const scannerInstanceRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    // Limpieza al desmontar
+    // Limpieza al desmontar el componente (navegar fuera)
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(err => console.error("Error clearing scanner", err));
+      if (scannerInstanceRef.current) {
+        scannerInstanceRef.current.stop().then(() => {
+            scannerInstanceRef.current?.clear();
+        }).catch(err => console.error("Error stopping scanner cleanup", err));
       }
     };
   }, []);
 
-  useEffect(() => {
-    if (scanning) {
-        // Pequeño delay para asegurar que el DOM está listo
-        const timer = setTimeout(() => {
-            if (!scannerRef.current) {
-                try {
-                    const scanner = new Html5QrcodeScanner(
-                        "reader",
-                        { 
-                            fps: 10, 
-                            qrbox: { width: 250, height: 250 },
-                            aspectRatio: 1.0 
-                        },
-                        /* verbose= */ false
-                    );
-                    scannerRef.current = scanner;
+  const startScanning = async () => {
+      setScanning(true);
+      setError('');
 
-                    scanner.render(async (decodedText: string) => {
-                        console.log("QR Code detected:", decodedText);
-                        // Pausar y procesar
-                        if (scannerRef.current) {
-                             await scannerRef.current.clear();
-                             scannerRef.current = null;
-                        }
-                        setScanning(false);
-                        handleProcessId(decodedText);
-                    }, (errorMessage: any) => {
-                        // Ignorar errores de frame vacíos
-                    });
-                } catch (e) {
-                    console.error("Error initializing scanner", e);
-                    setError("No se pudo iniciar la cámara. Verifica permisos.");
-                    setScanning(false);
-                }
-            }
-        }, 300);
+      // Pequeño delay para asegurar que el div "reader" existe en el DOM
+      setTimeout(async () => {
+          try {
+              const html5QrCode = new Html5Qrcode("reader");
+              scannerInstanceRef.current = html5QrCode;
 
-        return () => clearTimeout(timer);
-    } else {
-        // Si scanning se vuelve false, limpiar
-        if (scannerRef.current) {
-            scannerRef.current.clear().catch(console.error);
-            scannerRef.current = null;
-        }
-    }
-  }, [scanning]);
+              const config = { 
+                  fps: 10, 
+                  qrbox: { width: 250, height: 250 },
+                  aspectRatio: 1.0
+              };
+
+              await html5QrCode.start(
+                  { facingMode: "environment" }, // Usa la cámara trasera
+                  config,
+                  (decodedText) => {
+                      // Éxito al leer
+                      console.log("QR Code detected:", decodedText);
+                      stopScanning(); // Detener cámara
+                      handleProcessId(decodedText);
+                  },
+                  (errorMessage) => {
+                      // Error de lectura por frame (ignorar para no saturar consola)
+                  }
+              );
+          } catch (err) {
+              console.error("Error starting scanner", err);
+              setError("No se pudo acceder a la cámara. Verifica los permisos en tu navegador.");
+              setScanning(false);
+          }
+      }, 100);
+  };
+
+  const stopScanning = async () => {
+      if (scannerInstanceRef.current) {
+          try {
+              await scannerInstanceRef.current.stop();
+              await scannerInstanceRef.current.clear();
+              scannerInstanceRef.current = null;
+          } catch (err) {
+              console.error("Failed to stop scanner", err);
+          }
+      }
+      setScanning(false);
+  };
 
   const handleProcessId = async (id: string) => {
       setLoading(true);
@@ -112,19 +119,22 @@ export const TechScan: React.FC = () => {
       <div className="space-y-6">
         {/* Lector de QR */}
         {scanning ? (
-            <div className="bg-black rounded-lg overflow-hidden relative min-h-[300px] flex flex-col justify-center">
+            <div className="relative">
+                 <div id="reader" className="w-full rounded-lg overflow-hidden bg-black min-h-[300px]"></div>
                  <button 
-                    onClick={() => setScanning(false)}
-                    className="absolute top-2 right-2 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40 backdrop-blur-sm"
+                    onClick={stopScanning}
+                    className="absolute top-2 right-2 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40 backdrop-blur-sm border border-white/30"
                  >
                     <X className="h-5 w-5" />
                  </button>
-                 <div id="reader" className="w-full h-full"></div>
+                 <div className="absolute bottom-4 left-0 right-0 text-center text-white text-xs bg-black/50 py-1">
+                    Escaneando... Mantén el código centrado
+                 </div>
             </div>
         ) : (
             <button
                 type="button"
-                onClick={() => setScanning(true)}
+                onClick={startScanning}
                 className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition transform hover:scale-[1.02]"
             >
                 <Camera className="mr-2 h-6 w-6" />

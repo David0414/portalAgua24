@@ -39,7 +39,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Branding with Logo */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
               <img 
-                src="https://i.ibb.co/6yv7v0S/logo-agua-24.jpg" 
+                src="https://ui-avatars.com/api/?name=Agua+24&background=0ea5e9&color=fff&size=128&bold=true&length=3" 
                 alt="Agua/24" 
                 className="h-10 w-10 rounded-full border-2 border-white/20 shadow-sm" 
               />
@@ -62,7 +62,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </button>
                 </>
               ) : (
-                <span className="text-xs text-white/50">v2.0 Producción</span>
+                <span className="text-xs text-white/50">v2.3 Producción</span>
               )}
             </div>
           </div>
@@ -75,7 +75,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       
       <footer className="bg-slate-100 border-t border-slate-200 mt-auto py-6">
         <div className="max-w-7xl mx-auto px-4 text-center text-slate-500 text-sm flex flex-col items-center">
-          <img src="https://i.ibb.co/jv0TTKgr/logo.jpg" className="h-8 w-8 rounded-full mb-2 opacity-50 grayscale hover:grayscale-0 transition" />
+          <img 
+            src="https://ui-avatars.com/api/?name=Agua+24&background=cbd5e1&color=64748b&size=64&bold=true&length=3" 
+            className="h-8 w-8 rounded-full mb-2 opacity-50 grayscale hover:grayscale-0 transition" 
+            alt="Logo Footer"
+          />
           <span>&copy; {new Date().getFullYear()} Agua/24. Siempre cerca, siempre pura.</span>
         </div>
       </footer>
