@@ -26,14 +26,17 @@ export interface ChecklistItemDefinition {
   type: 'boolean' | 'number' | 'text' | 'photo';
   required: boolean;
   section: 'weekly' | 'monthly';
-  reference?: string; // Valores ideales (Ej: "6.5 - 8.5")
+  reference?: string; // Valores ideales texto (Ej: "6.5 - 8.5")
   unit?: string; // Unidad de medida (Ej: "ppm")
+  min?: number; // Para gráficas (Línea baja)
+  max?: number; // Para gráficas (Línea alta)
 }
 
 export interface ChecklistValue {
   itemId: string;
   value: string | number | boolean;
   photoUrl?: string; // URL or Base64 for preview
+  comment?: string; // Comentario opcional por item
 }
 
 export interface Report {

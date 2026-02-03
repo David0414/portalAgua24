@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format } from 'date-fns';
@@ -69,7 +69,13 @@ export const AdminReview: React.FC = () => {
   const handleApprove = async () => {
     setLoadingAction(true);
     try {
+      // 1. Update Status in DB
       await api.reviewReport(report.id, ReportStatus.APPROVED);
+      
+      // 2. Auto-Download PDF for the Owner
+      if (machineInfo) {
+          generateReportPDF(report, machineInfo.location);
+      }
       
       const msgTech = `✅ *Reporte Aprobado*\nTu mantenimiento de la máquina ${report.machineId} ha sido validado correctamente.`;
       
@@ -133,18 +139,8 @@ export const AdminReview: React.FC = () => {
   const sendCondoWhatsApp = () => {
     if (!report || !machineInfo || !condoContact?.phone) return;
     
-    // Extract key values for the summary
-    const tdsVal = report.data.find(d => d.itemId === 'w9')?.value || 'N/A';
-    const phVal = report.data.find(d => d.itemId === 'w5')?.value || 'N/A';
-    const dateStr = format(new Date(), "d 'de' MMMM", { locale: es });
-
-    const msg = generateCondoReportMessage(
-        report.machineId, 
-        machineInfo.location, 
-        dateStr,
-        tdsVal.toString(),
-        phVal.toString()
-    );
+    // Message specifically mentioning the PDF attachment
+    const msg = `✅ *Reporte Listo*\n\nAdjunto el PDF con los detalles del mantenimiento en *${machineInfo.location}*.\n\nTambién disponible en tu portal: ${PRODUCTION_URL}/#/login/condo`;
 
     sendWhatsAppNotification(condoContact.phone, msg);
   };
@@ -170,68 +166,70 @@ export const AdminReview: React.FC = () => {
         <h2 className="text-3xl font-bold text-slate-900 mb-2">
           {outcome.status === ReportStatus.APPROVED ? 'Reporte Aprobado' : 'Reporte Rechazado'}
         </h2>
-        <p className="text-slate-500 mb-6">
-          Base de datos actualizada correctamente.
-        </p>
+        
+        {outcome.status === ReportStatus.APPROVED && (
+            <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm mb-4">
+                <p>📥 El PDF se ha descargado a tu dispositivo automáticamente.</p>
+            </div>
+        )}
 
-        {outcome.status === ReportStatus.APPROVED ? (
-            <div className="space-y-4">
-                <div className="bg-green-50 p-4 rounded-lg border border-green-100 text-left mb-6">
-                    <h4 className="font-bold text-green-800 flex items-center mb-2">
-                        <Share2 className="h-4 w-4 mr-2"/> Siguientes Pasos
-                    </h4>
-                    <p className="text-sm text-green-700">Notifique a las partes involucradas para cerrar el ciclo de servicio.</p>
-                </div>
-
+        <div className="space-y-4">
+            {outcome.status === ReportStatus.APPROVED ? (
+               <>
+                 {/* Step 1: Tech */}
                 <button
                     onClick={sendTechWhatsApp}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition group"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition group"
                 >
                     <div className="flex items-center">
-                        <div className="bg-brand-100 p-2 rounded-full mr-3 group-hover:bg-brand-200 transition">
+                        <div className="bg-brand-100 p-2 rounded-full mr-3">
                              <MessageCircle className="h-5 w-5 text-brand-600" />
                         </div>
                         <div className="text-left">
                             <span className="block font-bold text-slate-700">1. Avisar al Técnico</span>
-                            <span className="text-xs text-slate-400">Confirmar validación</span>
                         </div>
                     </div>
                     <ExternalLink className="h-4 w-4 text-slate-400" />
                 </button>
                 
+                {/* Step 2: Condo (With instructions for PDF) */}
                 {condoContact ? (
-                    <button
-                        onClick={sendCondoWhatsApp}
-                        className="w-full flex items-center justify-between px-4 py-3 bg-teal-50 border border-teal-200 rounded-xl hover:bg-teal-100 transition group shadow-sm"
-                    >
-                        <div className="flex items-center">
-                            <div className="bg-teal-200 p-2 rounded-full mr-3 group-hover:bg-teal-300 transition">
-                                <Building className="h-5 w-5 text-teal-800" />
-                            </div>
-                            <div className="text-left">
-                                <span className="block font-bold text-teal-900">2. Enviar Reporte al Cliente</span>
-                                <span className="text-xs text-teal-600">Compartir PDF/Link WhatsApp</span>
-                            </div>
+                    <div className="border border-teal-200 rounded-xl overflow-hidden">
+                        <div className="bg-teal-50 p-3 text-left border-b border-teal-100">
+                             <p className="text-xs font-bold text-teal-800 uppercase mb-1">Paso 2: Enviar a Cliente</p>
+                             <p className="text-sm text-teal-600">Al dar clic, se abrirá WhatsApp. <strong>Arrastra el PDF descargado</strong> al chat.</p>
                         </div>
-                        <ExternalLink className="h-4 w-4 text-teal-500" />
-                    </button>
+                        <button
+                            onClick={sendCondoWhatsApp}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-teal-50 transition"
+                        >
+                            <div className="flex items-center">
+                                <div className="bg-teal-200 p-2 rounded-full mr-3">
+                                    <Paperclip className="h-5 w-5 text-teal-800" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block font-bold text-teal-900">2. Abrir WhatsApp Cliente</span>
+                                </div>
+                            </div>
+                            <ExternalLink className="h-4 w-4 text-teal-500" />
+                        </button>
+                    </div>
                 ) : (
                     <div className="p-3 bg-slate-50 text-slate-400 text-xs rounded-lg text-left">
                         * No hay usuario de condominio asignado para notificar.
                     </div>
                 )}
-            </div>
-        ) : (
-             <div className="space-y-4">
-                <button
+               </>
+            ) : (
+                 <button
                     onClick={sendTechWhatsApp}
                     className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-lg"
-                >
+                 >
                     <AlertTriangle className="h-5 w-5" />
                     <span>Enviar Correcciones al Técnico</span>
-                </button>
-             </div>
-        )}
+                 </button>
+            )}
+        </div>
            
         <button
             onClick={goBackToDashboard}
@@ -301,7 +299,7 @@ export const AdminReview: React.FC = () => {
                         <th className="p-4 font-bold">Parámetro de Control</th>
                         <th className="p-4 font-bold text-center">Referencia (Ideal)</th>
                         <th className="p-4 font-bold text-center">Resultado (Real)</th>
-                        <th className="p-4 font-bold text-center">Estado</th>
+                        <th className="p-4 font-bold text-center">Obs / Comentarios</th>
                         <th className="p-4 font-bold text-center">Evidencia</th>
                     </tr>
                 </thead>
@@ -329,12 +327,8 @@ export const AdminReview: React.FC = () => {
                                         )}
                                     </span>
                                 </td>
-                                <td className="p-4 text-center">
-                                    {isBool ? (
-                                        val ? <Check className="h-5 w-5 text-green-500 mx-auto" /> : <X className="h-5 w-5 text-red-500 mx-auto" />
-                                    ) : (
-                                        (val !== undefined && val !== '') ? <Check className="h-5 w-5 text-green-500 mx-auto opacity-50" /> : <span className="text-slate-300">-</span>
-                                    )}
+                                <td className="p-4 text-center text-xs text-slate-500 italic max-w-[200px]">
+                                    {data?.comment || '-'}
                                 </td>
                                 <td className="p-4 text-center">
                                     {data?.photoUrl ? (
@@ -347,7 +341,7 @@ export const AdminReview: React.FC = () => {
                                             />
                                         </div>
                                     ) : (
-                                        <span className="text-xs text-slate-300 italic">Sin foto</span>
+                                        <span className="text-xs text-red-300 italic font-bold">Sin foto</span>
                                     )}
                                 </td>
                             </tr>
@@ -357,13 +351,6 @@ export const AdminReview: React.FC = () => {
             </table>
         </div>
       </div>
-      
-      {/* COMENTARIOS ADICIONALES (SI EXISTEN) */}
-      {report.data.length > checklistDef.length && (
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-              <strong>Nota:</strong> Este reporte contiene campos adicionales o de una versión anterior del checklist.
-          </div>
-      )}
 
       {/* ACTIONS FOOTER */}
       {report.status === ReportStatus.PENDING && (
@@ -382,7 +369,7 @@ export const AdminReview: React.FC = () => {
               className="flex-[2] bg-gradient-to-r from-brand-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-brand-700 hover:to-indigo-700 flex justify-center items-center shadow-lg hover:shadow-xl transition disabled:opacity-70 transform hover:-translate-y-0.5"
             >
               {loadingAction ? <Loader2 className="mr-2 animate-spin" /> : <Check className="mr-2" />}
-              {loadingAction ? 'Procesando...' : 'Validar y Emitir Certificado'}
+              {loadingAction ? 'Procesando...' : 'Validar y Descargar'}
             </button>
           </div>
         </div>

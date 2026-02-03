@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../services/db';
-import { ChecklistValue, ReportStatus, Report } from '../types';
-import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, ADMIN_PHONE } from '../constants';
+import { ChecklistValue, ReportStatus, Report, Role } from '../types';
+import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { sendWhatsAppNotification, generateAdminReviewLink } from '../services/whatsapp';
-import { AlertTriangle, CheckCircle, Save, ArrowRight, MessageCircle, User as UserIcon, Phone } from 'lucide-react';
+import { CheckCircle, Save, MessageCircle, AlertTriangle, MessageSquare, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const TechForm: React.FC = () => {
@@ -33,9 +33,19 @@ export const TechForm: React.FC = () => {
           setFormType(report.type);
           setPreviousComments(report.adminComments || null);
           const valMap: Record<string, ChecklistValue> = {};
-          report.data.forEach(item => {
-            valMap[item.itemId] = item;
-          });
+          
+          // FIX: Usamos 'as any' para evitar el error "Type 'unknown[]' is not assignable".
+          // Esto fuerza a TypeScript a confiar en que la data es un arreglo.
+          const rawData = report.data as any;
+          
+          if (Array.isArray(rawData)) {
+            rawData.forEach((item: any) => {
+              // Protección defensiva: Solo agregar si tiene itemId válido para evitar error "{}"
+              if (item && item.itemId) {
+                valMap[item.itemId] = item;
+              }
+            });
+          }
           setValues(valMap);
         }
       }
@@ -47,6 +57,13 @@ export const TechForm: React.FC = () => {
     setValues(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], itemId, value: val }
+    }));
+  };
+
+  const handleCommentChange = (itemId: string, comment: string) => {
+    setValues(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], itemId, comment }
     }));
   };
 
@@ -64,235 +81,269 @@ export const TechForm: React.FC = () => {
     }
 
     for (const item of checklist) {
+      const entry = values[item.id];
+      
+      // 1. Validar Valor Requerido
       if (item.required) {
-        const entry = values[item.id];
         if (!entry || entry.value === undefined || entry.value === "") {
              alert(`Falta completar el campo: "${item.label}"`);
+             const element = document.getElementById(`item-${item.id}`);
+             element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
              return false;
         }
+      }
+
+      // 2. FOTO OBLIGATORIA (Mandatory Photo Requirement)
+      if (!entry?.photoUrl) {
+          alert(`FOTO OBLIGATORIA: Debes subir una foto para "${item.label}"`);
+          const element = document.getElementById(`item-${item.id}`);
+          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return false;
       }
     }
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
     try {
+      // FIX: Casting explícito para asegurar a TS que es un array de ChecklistValue
       const reportData = Object.values(values) as ChecklistValue[];
-      let reportResult: Report;
 
       if (reportIdToEdit) {
-        reportResult = await api.updateReport(reportIdToEdit, {
-          data: reportData,
-          technicianName: user?.name,
-          technicianId: user?.phone
+        // Update existing
+        await api.updateReport(reportIdToEdit, {
+            data: reportData,
+            technicianId: user!.phone,
+            technicianName: user!.name
         });
+        const r = await api.getReportById(reportIdToEdit);
+        if (r) setSubmittedReport(r);
+
       } else {
-        reportResult = await api.submitReport({
+        // Create new
+        const newReport = await api.submitReport({
           machineId: machineId!,
-          technicianId: user?.phone || 'Unknown',
-          technicianName: user?.name || 'Unknown',
+          technicianId: user!.phone!,
+          technicianName: user!.name,
           data: reportData,
-          type: formType
+          type: formType,
         });
+        setSubmittedReport(newReport);
       }
       
-      setSubmittedReport(reportResult);
-
-    } catch (err) {
-      console.error(err);
-      alert("Error al guardar el reporte.");
+    } catch (error) {
+      console.error(error);
+      alert("Error al guardar reporte");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleWhatsAppClick = () => {
-    if (!submittedReport) return;
-    const reviewLink = generateAdminReviewLink(submittedReport.id);
-    const msg = `🔔 *Nuevo Reporte Mantenimiento*\nMáquina: ${machineId}\nTécnico: ${user?.name}\nTipo: ${formType}\n\nRevisar aquí: ${reviewLink}`;
-    sendWhatsAppNotification(ADMIN_PHONE, msg);
+  const handleNotifyAdmin = async () => {
+      if (!submittedReport) return;
+      
+      setLoading(true); 
+      try {
+          // Búsqueda Dinámica del Administrador
+          const users = await api.getUsers();
+          const admin = users.find(u => u.role === Role.OWNER && u.phone);
+
+          if (!admin || !admin.phone) {
+              alert("No se encontró un número de administrador (Owner) registrado en el sistema. Por favor contacte soporte.");
+              setLoading(false);
+              return;
+          }
+
+          const link = generateAdminReviewLink(submittedReport.id);
+          const message = `✅ *Reporte Completado*\n\nTécnico: ${user?.name}\nMáquina: ${machineId}\n\nRevisar aquí: ${link}`;
+          
+          sendWhatsAppNotification(admin.phone, message);
+          navigate('/tech/scan');
+      } catch (error) {
+          console.error("Error buscando admin:", error);
+          alert("Error al intentar notificar al administrador.");
+      } finally {
+          setLoading(false);
+      }
   };
 
-  // --- SUCCESS VIEW ---
   if (submittedReport) {
-    return (
-      <div className="max-w-xl mx-auto mt-10 p-8 bg-white rounded-2xl shadow-xl text-center border-t-8 border-green-500">
-        <div className="flex justify-center mb-6">
-          <div className="bg-green-100 p-4 rounded-full">
-            <CheckCircle className="h-16 w-16 text-green-600" />
-          </div>
-        </div>
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">¡Reporte Guardado!</h2>
-        <p className="text-slate-500 mb-8">
-          El reporte ha sido registrado exitosamente.
-        </p>
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-green-50 animate-in zoom-in duration-300">
+              <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full">
+                  <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 mb-6">
+                      <CheckCircle className="h-10 w-10 text-green-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">¡Reporte Enviado!</h2>
+                  <p className="text-slate-500 mb-8">La información ha sido registrada correctamente en el sistema.</p>
+                  
+                  <button 
+                    onClick={handleNotifyAdmin}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-lg transform hover:scale-105 disabled:opacity-70 disabled:transform-none"
+                  >
+                      {loading ? <Loader2 className="animate-spin mr-2 h-5 w-5"/> : <MessageCircle className="mr-2 h-5 w-5" />}
+                      Notificar al Admin
+                  </button>
 
-        <div className="space-y-4">
-          <button
-            onClick={handleWhatsAppClick}
-            className="w-full flex items-center justify-center space-x-3 bg-green-500 text-white px-6 py-4 rounded-xl font-bold hover:bg-green-600 transition shadow-lg"
-          >
-            <MessageCircle className="h-6 w-6" />
-            <span>Notificar al Propietario (WhatsApp)</span>
-          </button>
-        </div>
-        
-        <button 
-          onClick={() => navigate('/')}
-          className="mt-8 text-slate-400 hover:text-slate-600 text-sm underline"
-        >
-          Volver al Inicio
-        </button>
-      </div>
-    );
+                  <button 
+                     onClick={() => navigate('/tech/scan')}
+                     className="mt-4 text-slate-400 text-sm font-medium hover:text-slate-600"
+                  >
+                      Volver al Inicio
+                  </button>
+              </div>
+          </div>
+      );
   }
 
-  // --- FORM VIEW ---
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-20">
-      <div className="bg-white p-6 rounded-xl shadow-md border-t-4 border-brand-500 flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Bitácora de Mantenimiento</h1>
-          <p className="text-slate-500">Máquina: <span className="font-mono font-bold text-slate-900">{machineId}</span></p>
+    <div className="max-w-3xl mx-auto pb-20">
+      {/* Header */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 sticky top-20 z-10">
+        <div className="flex justify-between items-center">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">Checklist de Servicio</h1>
+                <p className="text-slate-500 text-sm">Máquina: <span className="font-mono font-bold text-brand-600">{machineId}</span></p>
+            </div>
+            <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg">
+                <button 
+                    onClick={() => setFormType('weekly')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition ${formType === 'weekly' ? 'bg-white shadow text-brand-600' : 'text-slate-400'}`}
+                >
+                    SEMANAL
+                </button>
+                <button 
+                    onClick={() => setFormType('monthly')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition ${formType === 'monthly' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}
+                >
+                    MENSUAL
+                </button>
+            </div>
+        </div>
+        {previousComments && (
+            <div className="mt-4 bg-red-50 border border-red-100 p-3 rounded-lg flex items-start text-sm text-red-700 animate-pulse">
+                <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0" />
+                <div>
+                    <span className="font-bold block">Correcciones Solicitadas:</span>
+                    {previousComments}
+                </div>
+            </div>
+        )}
+      </div>
+
+      <div className="space-y-6">
+        {checklist.map((item) => (
+          <div key={item.id} id={`item-${item.id}`} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 transition hover:shadow-md">
+            <div className="flex justify-between items-start mb-3">
+                <label className="block text-lg font-medium text-slate-800">
+                    {item.label} <span className="text-red-500">*</span>
+                </label>
+                {item.reference && (
+                    <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded font-mono border border-slate-200">
+                        Ref: {item.reference}
+                    </span>
+                )}
+            </div>
+            
+            <div className="space-y-4">
+                {/* Input Field */}
+                {item.type === 'boolean' ? (
+                    <div className="flex gap-4">
+                        <button
+                        type="button"
+                        onClick={() => handleInputChange(item.id, true)}
+                        className={`flex-1 py-3 px-4 rounded-lg border font-medium transition flex items-center justify-center ${
+                            values[item.id]?.value === true
+                            ? 'bg-green-50 border-green-500 text-green-700 ring-1 ring-green-500'
+                            : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}
+                        >
+                        <CheckCircle className={`mr-2 h-5 w-5 ${values[item.id]?.value === true ? 'opacity-100' : 'opacity-0'}`} />
+                        Cumple / Sí
+                        </button>
+                        <button
+                        type="button"
+                        onClick={() => handleInputChange(item.id, false)}
+                        className={`flex-1 py-3 px-4 rounded-lg border font-medium transition ${
+                            values[item.id]?.value === false
+                            ? 'bg-red-50 border-red-500 text-red-700 ring-1 ring-red-500'
+                            : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                        }`}
+                        >
+                        No Cumple
+                        </button>
+                    </div>
+                ) : (
+                    <div className="relative">
+                        <input
+                            type={item.type === 'number' ? 'number' : 'text'}
+                            value={values[item.id]?.value as string || ''}
+                            onChange={(e) => handleInputChange(item.id, e.target.value)}
+                            className="block w-full rounded-lg border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 py-3 px-4 text-lg bg-slate-50 focus:bg-white transition"
+                            placeholder={`Ingrese valor (${item.unit || 'texto'})`}
+                        />
+                        {item.unit && (
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <span className="text-slate-400 font-bold sm:text-sm">{item.unit}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Photo Upload (Mandatory) */}
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-2">Evidencia Fotográfica (Requerido)</p>
+                    <PhotoUpload
+                        label={item.label}
+                        value={values[item.id]?.photoUrl}
+                        onChange={(url) => handlePhotoChange(item.id, url)}
+                    />
+                </div>
+
+                {/* Optional Comment Box */}
+                <div>
+                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center">
+                      <MessageSquare className="h-3 w-3 mr-1" /> Comentarios (Opcional)
+                   </label>
+                   <textarea 
+                      className="w-full text-sm p-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-brand-300 outline-none resize-none bg-slate-50 focus:bg-white"
+                      rows={2}
+                      placeholder="Observaciones adicionales..."
+                      value={values[item.id]?.comment || ''}
+                      onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                   />
+                </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Floating Action Button */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
+        <div className="max-w-3xl mx-auto">
+             <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full flex items-center justify-center space-x-2 bg-brand-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-brand-700 transition transform active:scale-95 disabled:opacity-70 disabled:transform-none"
+             >
+                {loading ? (
+                    <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                    Guardando...
+                    </>
+                ) : (
+                    <>
+                    <Save className="h-6 w-6 mr-2" />
+                    Finalizar Reporte
+                    </>
+                )}
+            </button>
         </div>
       </div>
-      
-      {previousComments && (
-           <div className="bg-red-50 border border-red-200 p-4 rounded-lg flex items-start space-x-3 mx-6 md:mx-0">
-             <AlertTriangle className="text-red-500 h-6 w-6 flex-shrink-0" />
-             <div>
-               <h3 className="font-bold text-red-800">Corrección Requerida</h3>
-               <p className="text-red-700 text-sm mt-1">{previousComments}</p>
-             </div>
-           </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Tech Info Readonly */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <h3 className="text-sm font-bold uppercase text-slate-500 mb-3 tracking-wider">Técnico Responsable</h3>
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-                <div className="bg-brand-50 p-2 rounded-full"><UserIcon className="h-5 w-5 text-brand-600" /></div>
-                <span className="font-medium text-slate-900">{user?.name}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-                <div className="bg-green-50 p-2 rounded-full"><Phone className="h-5 w-5 text-green-600" /></div>
-                <span className="font-medium text-slate-900">{user?.phone}</span>
-            </div>
-          </div>
-          
-          <div className="mt-6 pt-4 border-t border-slate-100">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Tipo de Mantenimiento</label>
-            <div className="flex space-x-4">
-              <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-center transition ${formType === 'weekly' ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold' : 'bg-white hover:bg-slate-50'}`}>
-                <input 
-                  type="radio" 
-                  checked={formType === 'weekly'} 
-                  onChange={() => setFormType('weekly')}
-                  className="hidden" 
-                  disabled={!!reportIdToEdit}
-                />
-                Semanal
-              </label>
-              <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-center transition ${formType === 'monthly' ? 'bg-brand-50 border-brand-500 text-brand-700 font-bold' : 'bg-white hover:bg-slate-50'}`}>
-                <input 
-                  type="radio" 
-                  checked={formType === 'monthly'} 
-                  onChange={() => setFormType('monthly')}
-                  className="hidden" 
-                  disabled={!!reportIdToEdit}
-                />
-                Mensual
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Checklist */}
-        <div className="bg-white rounded-xl shadow-sm divide-y divide-slate-100 overflow-hidden">
-          <div className="bg-slate-50 p-4 border-b border-slate-200">
-             <h3 className="font-semibold text-slate-700">Lista de Verificación ({formType === 'weekly' ? 'Semanal' : 'Mensual'})</h3>
-          </div>
-          
-          {checklist.map((item) => (
-            <div key={item.id} className="p-4 hover:bg-slate-50 transition-colors">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between space-y-3 md:space-y-0">
-                <div className="flex-1 pr-4">
-                  <label className="block text-sm font-medium text-slate-900 mb-1">
-                    {item.label}
-                    {item.required && <span className="text-red-500 ml-1">*</span>}
-                  </label>
-                  
-                  {item.type === 'boolean' && (
-                    <div className="flex space-x-4 mt-2">
-                       <button
-                         type="button"
-                         onClick={() => handleInputChange(item.id, true)}
-                         className={`px-4 py-1.5 rounded-full text-sm font-medium border ${values[item.id]?.value === true ? 'bg-green-100 text-green-800 border-green-200' : 'bg-white text-slate-600 border-slate-300'}`}
-                       >
-                         Bien / Hecho
-                       </button>
-                       <button
-                         type="button"
-                         onClick={() => handleInputChange(item.id, false)}
-                         className={`px-4 py-1.5 rounded-full text-sm font-medium border ${values[item.id]?.value === false ? 'bg-red-100 text-red-800 border-red-200' : 'bg-white text-slate-600 border-slate-300'}`}
-                       >
-                         Mal / No Aplica
-                       </button>
-                    </div>
-                  )}
-
-                  {(item.type === 'number' || item.type === 'text') && (
-                    <input
-                      type={item.type}
-                      value={values[item.id]?.value?.toString() || ''}
-                      onChange={(e) => handleInputChange(item.id, e.target.value)}
-                      className="mt-1 block w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm p-2 border"
-                      placeholder="Ingrese lectura/valor"
-                    />
-                  )}
-                </div>
-
-                <div className="flex-shrink-0">
-                  <PhotoUpload 
-                    label="Evidencia"
-                    value={values[item.id]?.photoUrl}
-                    onChange={(url) => handlePhotoChange(item.id, url)}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Submit Bar */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 z-40">
-           <div className="max-w-3xl mx-auto flex justify-between items-center">
-             <div className="text-sm text-slate-500 hidden sm:block">
-               {Object.keys(values).length} / {checklist.length} items completados
-             </div>
-             <button
-               type="submit"
-               disabled={loading}
-               className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-brand-600 text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:bg-brand-700 transition disabled:opacity-50"
-             >
-               {loading ? (
-                 <span>Enviando...</span>
-               ) : (
-                 <>
-                   <Save className="h-5 w-5" />
-                   <span>{reportIdToEdit ? 'Enviar Corrección' : 'Finalizar y Enviar'}</span>
-                 </>
-               )}
-             </button>
-           </div>
-        </div>
-      </form>
     </div>
   );
 };
