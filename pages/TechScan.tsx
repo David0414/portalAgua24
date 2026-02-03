@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle } from 'lucide-react';
+import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import { api } from '../services/db';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export const TechScan: React.FC = () => {
   const navigate = useNavigate();
@@ -11,29 +11,53 @@ export const TechScan: React.FC = () => {
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  // Referencia a la instancia del scanner para poder limpiarla correctamente
-  const scannerInstanceRef = useRef<Html5Qrcode | null>(null);
+  // Input para subir archivo (fallback)
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    // Limpieza al desmontar el componente (navegar fuera)
+    // Limpieza agresiva al salir
     return () => {
-      if (scannerInstanceRef.current) {
-        scannerInstanceRef.current.stop().then(() => {
-            scannerInstanceRef.current?.clear();
-        }).catch(err => console.error("Error stopping scanner cleanup", err));
+      if (scannerRef.current) {
+        try {
+            if (scannerRef.current.isScanning) {
+                scannerRef.current.stop().then(() => {
+                    scannerRef.current?.clear();
+                }).catch(console.warn);
+            } else {
+                scannerRef.current.clear().catch(console.warn);
+            }
+        } catch (e) { console.warn(e); }
       }
     };
   }, []);
 
   const startScanning = async () => {
-      setScanning(true);
       setError('');
+      setScanning(true);
 
-      // Pequeño delay para asegurar que el div "reader" existe en el DOM
+      // Verificación de HTTPS (Crucial para móviles)
+      const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
+      if (!isSecure) {
+          setError("Tu navegador bloquea la cámara porque la conexión no es segura (HTTPS). Usa la opción 'Subir Foto'.");
+          setScanning(false);
+          return;
+      }
+
+      // Pequeño delay para renderizar el div
       setTimeout(async () => {
           try {
-              const html5QrCode = new Html5Qrcode("reader");
-              scannerInstanceRef.current = html5QrCode;
+              // 1. Solicitar permiso explícito primero (Fix para iOS/Android)
+              // Esto despierta al navegador antes de que la librería intente cargar
+              const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+              // Soltamos el stream inmediatamente, solo queríamos el permiso
+              stream.getTracks().forEach(track => track.stop());
+
+              // 2. Iniciar librería
+              if (!scannerRef.current) {
+                  scannerRef.current = new Html5Qrcode("reader");
+              }
 
               const config = { 
                   fps: 10, 
@@ -41,35 +65,37 @@ export const TechScan: React.FC = () => {
                   aspectRatio: 1.0
               };
 
-              await html5QrCode.start(
-                  { facingMode: "environment" }, // Usa la cámara trasera
+              await scannerRef.current.start(
+                  { facingMode: "environment" }, 
                   config,
                   (decodedText) => {
-                      // Éxito al leer
-                      console.log("QR Code detected:", decodedText);
-                      stopScanning(); // Detener cámara
                       handleProcessId(decodedText);
+                      stopScanning();
                   },
                   (errorMessage) => {
-                      // Error de lectura por frame (ignorar para no saturar consola)
+                      // Ignorar errores por frame
                   }
               );
-          } catch (err) {
-              console.error("Error starting scanner", err);
-              setError("No se pudo acceder a la cámara. Verifica los permisos en tu navegador.");
+          } catch (err: any) {
+              console.error("Error cámara:", err);
+              let msg = "No se pudo iniciar la cámara.";
+              if (err.name === 'NotAllowedError') msg = "Permiso de cámara denegado. Habilítalo en la configuración del navegador.";
+              if (err.name === 'NotFoundError') msg = "No se encontró cámara trasera.";
+              setError(msg);
               setScanning(false);
           }
-      }, 100);
+      }, 200);
   };
 
   const stopScanning = async () => {
-      if (scannerInstanceRef.current) {
+      if (scannerRef.current) {
           try {
-              await scannerInstanceRef.current.stop();
-              await scannerInstanceRef.current.clear();
-              scannerInstanceRef.current = null;
+              if (scannerRef.current.isScanning) {
+                  await scannerRef.current.stop();
+              }
+              await scannerRef.current.clear();
           } catch (err) {
-              console.error("Failed to stop scanner", err);
+              console.warn("Stop error", err);
           }
       }
       setScanning(false);
@@ -87,13 +113,33 @@ export const TechScan: React.FC = () => {
           if (machine) {
               navigate(`/tech/start/${cleanId}`);
           } else {
-              setError(`La máquina con ID "${cleanId}" no existe en el sistema.`);
+              setError(`ID "${cleanId}" no encontrado.`);
           }
       } catch (e) {
-          setError("Error de conexión al verificar la máquina.");
+          setError("Error verificando máquina.");
       } finally {
           setLoading(false);
       }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!scannerRef.current) {
+          scannerRef.current = new Html5Qrcode("reader");
+      }
+
+      setLoading(true);
+      scannerRef.current.scanFile(file, true)
+        .then(decodedText => {
+            handleProcessId(decodedText);
+        })
+        .catch(err => {
+            console.error(err);
+            setError("No se detectó ningún código QR válido en la imagen.");
+            setLoading(false);
+        });
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -104,7 +150,7 @@ export const TechScan: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-slate-200 mt-6 md:mt-10">
-      <div className="flex flex-col items-center mb-8">
+      <div className="flex flex-col items-center mb-6">
         <div className={`p-4 rounded-full transition-all duration-300 ${scanning ? 'bg-indigo-100' : 'bg-slate-100'}`}>
           <QrCode className={`h-12 w-12 ${scanning ? 'text-indigo-600' : 'text-slate-600'}`} />
         </div>
@@ -112,69 +158,88 @@ export const TechScan: React.FC = () => {
           Escanear Máquina
         </h2>
         <p className="text-slate-500 text-center mt-2 text-sm">
-          Apunta tu cámara al código QR de la unidad.
+          Apunta al código QR para registrar servicio.
         </p>
       </div>
 
       <div className="space-y-6">
         {/* Lector de QR */}
         {scanning ? (
-            <div className="relative">
-                 <div id="reader" className="w-full rounded-lg overflow-hidden bg-black min-h-[300px]"></div>
+            <div className="relative bg-black rounded-xl overflow-hidden shadow-inner">
+                 <div id="reader" className="w-full min-h-[300px]"></div>
+                 
                  <button 
                     onClick={stopScanning}
-                    className="absolute top-2 right-2 z-20 bg-white/20 p-2 rounded-full text-white hover:bg-white/40 backdrop-blur-sm border border-white/30"
+                    className="absolute top-3 right-3 z-20 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 backdrop-blur-md"
                  >
                     <X className="h-5 w-5" />
                  </button>
-                 <div className="absolute bottom-4 left-0 right-0 text-center text-white text-xs bg-black/50 py-1">
-                    Escaneando... Mantén el código centrado
+                 
+                 <div className="absolute bottom-4 left-0 right-0 text-center text-white/90 text-xs bg-black/40 py-1 backdrop-blur-sm mx-4 rounded-full">
+                    Mantén el código centrado
                  </div>
             </div>
         ) : (
-            <button
-                type="button"
-                onClick={startScanning}
-                className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-xl shadow-md text-lg font-bold text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition transform hover:scale-[1.02]"
-            >
-                <Camera className="mr-2 h-6 w-6" />
-                Activar Cámara
-            </button>
+            <div className="space-y-3">
+                <button
+                    type="button"
+                    onClick={startScanning}
+                    className="w-full flex justify-center items-center py-4 px-4 rounded-xl shadow-md text-lg font-bold text-white bg-brand-600 hover:bg-brand-700 transition transform hover:scale-[1.02]"
+                >
+                    <Camera className="mr-2 h-6 w-6" />
+                    Abrir Cámara
+                </button>
+                
+                <input 
+                    type="file" 
+                    accept="image/*"
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileUpload}
+                />
+                
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex justify-center items-center py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold bg-white hover:bg-slate-50 transition"
+                >
+                    <ImageIcon className="mr-2 h-5 w-5 text-slate-500" />
+                    Subir Foto de QR
+                </button>
+            </div>
+        )}
+
+        {error && (
+            <div className="p-4 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100 flex items-start animate-in fade-in">
+               <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+               <span>{error}</span>
+            </div>
         )}
 
         <div className="relative flex py-2 items-center">
             <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-bold">O ingresar manualmente</span>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-bold">O manual</span>
             <div className="flex-grow border-t border-slate-200"></div>
         </div>
 
-        <form onSubmit={handleManualSubmit} className="space-y-4">
+        <form onSubmit={handleManualSubmit} className="space-y-3">
             <div>
-                <label htmlFor="machineId" className="block text-sm font-medium text-slate-700">
-                ID de Máquina
-                </label>
+                <label htmlFor="machineId" className="sr-only">ID de Máquina</label>
                 <input
                 type="text"
                 id="machineId"
                 value={machineId}
                 onChange={(e) => setMachineId(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 uppercase font-mono tracking-wider"
-                placeholder="Ej: M-001"
+                className="block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono tracking-wider text-center uppercase"
+                placeholder="ID MANUAL (Ej: M-001)"
                 disabled={loading}
                 />
             </div>
 
-            {error && (
-                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md border border-red-200 flex items-center animate-in fade-in slide-in-from-top-2">
-                   <AlertTriangle className="h-4 w-4 mr-2 flex-shrink-0" />
-                   {error}
-                </div>
-            )}
-
             <button
                 type="submit"
                 disabled={!machineId || loading}
-                className="w-full flex justify-center py-3 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 disabled:opacity-50 transition"
+                className="w-full flex justify-center py-3 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 transition"
             >
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
                     <>
@@ -184,6 +249,9 @@ export const TechScan: React.FC = () => {
                 )}
             </button>
         </form>
+        
+        {/* Hidden div for file scan API requirement */}
+        <div id="reader" className={scanning ? '' : 'hidden'}></div>
       </div>
     </div>
   );

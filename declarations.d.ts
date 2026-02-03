@@ -17,6 +17,7 @@ declare module 'html5-qrcode' {
 
     export class Html5Qrcode {
         constructor(elementId: string, verbose?: boolean | any);
+        isScanning: boolean;
         start(
             cameraIdOrConfig: string | { facingMode: string | { exact: string } } | { deviceId: string },
             configuration: any,
@@ -25,6 +26,7 @@ declare module 'html5-qrcode' {
         ): Promise<void>;
         stop(): Promise<void>;
         clear(): Promise<void>;
+        scanFile(imageFile: File, showImage?: boolean): Promise<string>;
     }
 
     export enum Html5QrcodeSupportedFormats {
@@ -60,6 +62,3 @@ declare module 'react-qr-code' {
     const QRCodeComponent: import('react').FC<QRCodeProps>;
     export default QRCodeComponent;
 }
-
-
-"df"
