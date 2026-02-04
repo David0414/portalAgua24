@@ -26,9 +26,13 @@ export const Home: React.FC = () => {
       
       <div className="text-center mb-10">
           <img 
-            src="https://ui-avatars.com/api/?name=Agua+24&background=0ea5e9&color=fff&size=128&bold=true&length=3" 
-            alt="Logo" 
-            className="h-16 w-16 mx-auto rounded-2xl shadow-lg mb-4"
+            src="/logo.jpg" 
+            alt="Agua 24 Logo" 
+            className="h-24 w-auto mx-auto mb-4 object-contain"
+            onError={(e) => {
+               // Fallback if image fails
+               e.currentTarget.src = "https://ui-avatars.com/api/?name=Agua+24&background=0ea5e9&color=fff&size=128&bold=true&length=3";
+            }}
           />
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Agua/24</h1>
           <p className="text-slate-500 font-medium">Selecciona tu perfil para ingresar</p>

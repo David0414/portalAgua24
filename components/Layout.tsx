@@ -20,18 +20,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   let appTitle = "Agua/24";
   let appSubtitle = "Portal General";
   let navColor = "bg-slate-900";
-  let Icon = Shield;
-
+  
   if (isTechApp) {
     appTitle = "App Técnico";
     appSubtitle = "Zona Operativa";
     navColor = "bg-blue-600"; // Distinctive Blue for Tech
-    Icon = QrCode;
   } else if (isOwnerApp) {
     appTitle = "App Admin";
     appSubtitle = "Gestión & Finanzas";
     navColor = "bg-slate-900"; // Professional Dark for Admin
-    Icon = Shield;
   } else if (isCondoApp) {
     appTitle = "Mi Condominio";
     appSubtitle = "Calidad del Agua";
@@ -49,10 +46,19 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <nav className={`${navColor} text-white shadow-lg sticky top-0 z-50 transition-colors duration-500`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            {/* Branding */}
+            {/* Branding with Logo */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
-              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                <Icon className="h-6 w-6 text-white" />
+              <div className="p-1 bg-white rounded-lg backdrop-blur-sm overflow-hidden">
+                <img 
+                  src="/logo.jpg" 
+                  alt="Logo" 
+                  className="h-8 w-auto object-contain"
+                  onError={(e) => {
+                    // Fallback if logo.jpg is missing
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = '<svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>';
+                  }}
+                />
               </div>
               <div className="flex flex-col leading-none">
                  <span className="font-bold text-lg tracking-tight">{appTitle}</span>

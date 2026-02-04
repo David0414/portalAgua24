@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/db';
 import { ChecklistValue, Report, Role } from '../types';
-import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
+import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { sendWhatsAppNotification, generateAdminReviewLink } from '../services/whatsapp';
-import { CheckCircle, Save, MessageCircle, AlertTriangle, MessageSquare, Loader2, Camera } from 'lucide-react';
+import { CheckCircle, Save, MessageCircle, AlertTriangle, MessageSquare, Loader2, Camera, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const TechForm: React.FC = () => {
@@ -16,7 +16,7 @@ export const TechForm: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [formType, setFormType] = useState<'weekly' | 'monthly'>('weekly');
+  const [formType, setFormType] = useState<'weekly' | 'monthly' | 'special'>('weekly');
   const [values, setValues] = useState<Record<string, ChecklistValue>>({});
   const [loading, setLoading] = useState(false);
   const [previousComments, setPreviousComments] = useState<string | null>(null);
@@ -24,7 +24,10 @@ export const TechForm: React.FC = () => {
   // State for success modal
   const [submittedReport, setSubmittedReport] = useState<Report | null>(null);
 
-  const checklist = formType === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
+  // Determine which checklist to use
+  const checklist = formType === 'weekly' ? WEEKLY_CHECKLIST : 
+                    formType === 'monthly' ? MONTHLY_CHECKLIST : 
+                    SPECIAL_CHECKLIST;
 
   useEffect(() => {
     const loadReport = async () => {
@@ -90,8 +93,6 @@ export const TechForm: React.FC = () => {
              return false;
         }
       }
-
-      // 2. FOTO YA NO ES OBLIGATORIA (Eliminado el bloque de validación de foto)
     }
     return true;
   };
@@ -146,7 +147,8 @@ export const TechForm: React.FC = () => {
           }
 
           const link = generateAdminReviewLink(submittedReport.id);
-          const message = `✅ *Reporte Completado*\n\nTécnico: ${user?.name}\nMáquina: ${machineId}\n\nRevisar aquí: ${link}`;
+          const reportTypeLabel = formType === 'special' ? 'REPORTE ESPECIAL' : 'Mantenimiento';
+          const message = `✅ *${reportTypeLabel} Completado*\n\nTécnico: ${user?.name}\nMáquina: ${machineId}\n\nRevisar aquí: ${link}`;
           
           sendWhatsAppNotification(admin.phone, message);
           navigate('/tech/scan');
@@ -191,23 +193,30 @@ export const TechForm: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto pb-20">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 sticky top-20 z-10">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">Checklist de Servicio</h1>
                 <p className="text-slate-500 text-sm">Máquina: <span className="font-mono font-bold text-brand-600">{machineId}</span></p>
             </div>
-            <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg">
+            <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg w-full md:w-auto">
                 <button 
                     onClick={() => setFormType('weekly')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition ${formType === 'weekly' ? 'bg-white shadow text-brand-600' : 'text-slate-400'}`}
+                    className={`flex-1 md:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition ${formType === 'weekly' ? 'bg-white shadow text-brand-600' : 'text-slate-400'}`}
                 >
                     SEMANAL
                 </button>
                 <button 
                     onClick={() => setFormType('monthly')}
-                    className={`px-3 py-1 text-xs font-bold rounded-md transition ${formType === 'monthly' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}
+                    className={`flex-1 md:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition ${formType === 'monthly' ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}`}
                 >
                     MENSUAL
+                </button>
+                <button 
+                    onClick={() => setFormType('special')}
+                    className={`flex-1 md:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition flex items-center justify-center ${formType === 'special' ? 'bg-white shadow text-amber-600' : 'text-slate-400'}`}
+                >
+                    <FileText className="w-3 h-3 mr-1" />
+                    ESPECIAL
                 </button>
             </div>
         </div>
@@ -231,7 +240,7 @@ export const TechForm: React.FC = () => {
                 </label>
                 {item.reference && (
                     <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded font-mono border border-slate-200">
-                        Ref: {item.reference}
+                        {item.reference}
                     </span>
                 )}
             </div>
@@ -263,6 +272,18 @@ export const TechForm: React.FC = () => {
                         No Cumple
                         </button>
                     </div>
+                ) : item.type === 'textarea' ? (
+                    // TEXTAREA FOR SPECIAL REPORTS
+                    <div className="relative">
+                        <textarea
+                            required
+                            rows={6}
+                            value={values[item.id]?.value as string || ''}
+                            onChange={(e) => handleInputChange(item.id, e.target.value)}
+                            className="block w-full rounded-lg border-slate-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 p-4 text-base bg-slate-50 focus:bg-white transition resize-none"
+                            placeholder="Escribe aquí todos los detalles, observaciones y acciones realizadas..."
+                        />
+                    </div>
                 ) : (
                     <div className="relative">
                         <input
@@ -280,10 +301,10 @@ export const TechForm: React.FC = () => {
                     </div>
                 )}
 
-                {/* Photo Upload (Opcional) */}
+                {/* Photo Upload (Opcional - But visually main evidence for special reports) */}
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                     <p className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center">
-                        <Camera className="h-3 w-3 mr-1" /> Evidencia Fotográfica (Opcional)
+                        <Camera className="h-3 w-3 mr-1" /> Evidencia Fotográfica {item.type === 'textarea' ? '(Importante)' : '(Opcional)'}
                     </p>
                     <PhotoUpload
                         label={item.label}
@@ -292,19 +313,21 @@ export const TechForm: React.FC = () => {
                     />
                 </div>
 
-                {/* Optional Comment Box */}
-                <div>
-                   <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center">
-                      <MessageSquare className="h-3 w-3 mr-1" /> Comentarios (Opcional)
-                   </label>
-                   <textarea 
-                      className="w-full text-sm p-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-brand-300 outline-none resize-none bg-slate-50 focus:bg-white"
-                      rows={2}
-                      placeholder="Observaciones adicionales..."
-                      value={values[item.id]?.comment || ''}
-                      onChange={(e) => handleCommentChange(item.id, e.target.value)}
-                   />
-                </div>
+                {/* Optional Comment Box (Only for standard items, not for textarea which is already a comment) */}
+                {item.type !== 'textarea' && (
+                    <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center">
+                        <MessageSquare className="h-3 w-3 mr-1" /> Comentarios (Opcional)
+                    </label>
+                    <textarea 
+                        className="w-full text-sm p-2 border border-slate-200 rounded-lg focus:ring-1 focus:ring-brand-300 outline-none resize-none bg-slate-50 focus:bg-white"
+                        rows={2}
+                        placeholder="Observaciones adicionales..."
+                        value={values[item.id]?.comment || ''}
+                        onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                    />
+                    </div>
+                )}
             </div>
           </div>
         ))}

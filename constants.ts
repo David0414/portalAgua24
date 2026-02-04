@@ -1,3 +1,4 @@
+
 import { ChecklistItemDefinition } from './types';
 
 export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
@@ -40,4 +41,15 @@ export const MONTHLY_CHECKLIST: ChecklistItemDefinition[] = [
   { id: 'm4', label: 'Coliformes Totales', type: 'text', required: true, section: 'monthly', reference: 'Ausente / Negativo' },
   { id: 'm5', label: 'Revisión auditiva de bombas', type: 'boolean', required: true, section: 'monthly', reference: 'Sin ruidos extraños' },
   { id: 'm6', label: 'Revisión de fugas de agua', type: 'boolean', required: true, section: 'monthly', reference: 'Seco' },
+];
+
+export const SPECIAL_CHECKLIST: ChecklistItemDefinition[] = [
+  { 
+      id: 's_notes', 
+      label: 'Descripción de Evento o Mantenimiento Especial', 
+      type: 'textarea', 
+      required: true, 
+      section: 'special',
+      reference: 'Detalles completos' 
+  },
 ];

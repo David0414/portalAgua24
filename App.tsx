@@ -10,6 +10,7 @@ import { TechForm } from './pages/TechForm';
 import { OwnerDashboard } from './pages/OwnerDashboard';
 import { OwnerMachines } from './pages/OwnerMachines';
 import { OwnerUsers } from './pages/OwnerUsers';
+import { OwnerSchedule } from './pages/OwnerSchedule';
 import { AdminReview } from './pages/AdminReview';
 import { CondoDashboard } from './pages/CondoDashboard';
 import { Role } from './types';
@@ -67,6 +68,9 @@ const AppRoutes: React.FC = () => {
         } />
         <Route path="/owner/users" element={
             <ProtectedRoute roles={[Role.OWNER]}><OwnerUsers /></ProtectedRoute>
+        } />
+        <Route path="/owner/schedule" element={
+            <ProtectedRoute roles={[Role.OWNER]}><OwnerSchedule /></ProtectedRoute>
         } />
         <Route path="/owner/review/:reportId" element={
             <ProtectedRoute roles={[Role.OWNER]}><AdminReview /></ProtectedRoute>

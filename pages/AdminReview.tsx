@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
-import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
+import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
 import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
@@ -17,6 +17,9 @@ export const AdminReview: React.FC = () => {
   const [condoContact, setCondoContact] = useState<User | null>(null);
   const [machineInfo, setMachineInfo] = useState<{location: string} | null>(null);
   
+  // History no longer needed for PDF
+  // const [history, setHistory] = useState<Report[]>([]);
+
   // Modal states
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -60,7 +63,9 @@ export const AdminReview: React.FC = () => {
 
   if (!report) return <div className="p-8 text-center flex justify-center"><Loader2 className="animate-spin text-brand-600" /></div>;
 
-  const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
+  const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : 
+                       report.type === 'monthly' ? MONTHLY_CHECKLIST :
+                       SPECIAL_CHECKLIST;
 
   const goBackToDashboard = () => {
       // Usamos navigate para navegación interna, mucho más rápido que reload
@@ -70,7 +75,8 @@ export const AdminReview: React.FC = () => {
   // PDF DOWNLOAD HANDLER
   const handleDownloadPDF = () => {
       if (report && machineInfo) {
-          generateReportPDF(report, machineInfo.location);
+          // No history passed
+          generateReportPDF(report, machineInfo.location, false);
       }
   };
 
@@ -83,10 +89,10 @@ export const AdminReview: React.FC = () => {
       // 2. Auto-Download PDF for the Owner
       if (machineInfo) {
           const approvedReport = { ...report, status: ReportStatus.APPROVED };
-          generateReportPDF(approvedReport, machineInfo.location);
+          generateReportPDF(approvedReport, machineInfo.location, false);
       }
       
-      const msgTech = `✅ *Reporte Aprobado*\nTu mantenimiento de la máquina ${report.machineId} ha sido validado correctamente.`;
+      const msgTech = `✅ *Reporte Aprobado*\nTu reporte (${report.type === 'special' ? 'Especial' : 'Mantenimiento'}) de la máquina ${report.machineId} ha sido validado correctamente.`;
       
       setOutcome({
         status: ReportStatus.APPROVED,
@@ -108,7 +114,7 @@ export const AdminReview: React.FC = () => {
       await api.reviewReport(report.id, ReportStatus.REJECTED, rejectReason);
       
       const editLink = generateTechEditLink(report.id, report.machineId);
-      const msgTech = `❌ *Reporte Rechazado*\nHay observaciones en tu mantenimiento de ${report.machineId}:\n_"${rejectReason}"_\n\nPor favor corrige aquí: ${editLink}`;
+      const msgTech = `❌ *Reporte Rechazado*\nHay observaciones en tu reporte de ${report.machineId}:\n_"${rejectReason}"_\n\nPor favor corrige aquí: ${editLink}`;
       
       setRejectModalOpen(false);
       
@@ -147,7 +153,7 @@ export const AdminReview: React.FC = () => {
 
   const sendCondoWhatsApp = () => {
     if (!report || !machineInfo || !condoContact?.phone) return;
-    const msg = `✅ *Reporte Listo*\n\nAdjunto el PDF con los detalles del mantenimiento en *${machineInfo.location}*.\n\nTambién disponible en tu portal: ${PRODUCTION_URL}/#/login/condo`;
+    const msg = `✅ *Reporte Disponible*\n\nAdjunto el PDF con los detalles del reporte (${report.type === 'special' ? 'Especial' : 'Mantenimiento'}) en *${machineInfo.location}*.\n\nTambién disponible en tu portal: ${PRODUCTION_URL}/#/login/condo`;
     sendWhatsAppNotification(condoContact.phone, msg);
   };
 
@@ -267,12 +273,14 @@ export const AdminReview: React.FC = () => {
 
       {/* HEADER TIPO REPORTE */}
       <div className="bg-white rounded-t-xl shadow-sm border border-slate-200 border-b-0 p-8 flex flex-col md:flex-row justify-between items-start md:items-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-500 to-indigo-600"></div>
+        <div className={`absolute top-0 left-0 w-full h-2 bg-gradient-to-r ${report.type === 'special' ? 'from-amber-500 to-orange-600' : 'from-brand-500 to-indigo-600'}`}></div>
         
         <div>
            <div className="flex items-center space-x-3 mb-2">
-              <FileText className="h-6 w-6 text-brand-600" />
-              <h1 className="text-2xl font-bold text-slate-800 uppercase tracking-wide">Certificado de Servicio</h1>
+              <FileText className={`h-6 w-6 ${report.type === 'special' ? 'text-amber-600' : 'text-brand-600'}`} />
+              <h1 className="text-2xl font-bold text-slate-800 uppercase tracking-wide">
+                  {report.type === 'special' ? 'Reporte Especial' : 'Certificado de Servicio'}
+              </h1>
            </div>
            <p className="text-slate-500">Máquina: <span className="font-bold text-slate-900">{machineInfo?.location || report.machineId}</span></p>
            <p className="text-xs text-slate-400 mt-1">ID: {report.machineId} • Fecha: {format(new Date(report.createdAt), "dd/MM/yyyy HH:mm")}</p>
@@ -296,75 +304,113 @@ export const AdminReview: React.FC = () => {
         </div>
       </div>
 
-      {/* TABLA DE RESULTADOS */}
+      {/* CONTENIDO DEL REPORTE */}
       <div className="bg-white shadow-lg border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-                <thead>
-                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                        <th className="p-4 font-bold">Parámetro de Control</th>
-                        <th className="p-4 font-bold text-center">Referencia (Ideal)</th>
-                        <th className="p-4 font-bold text-center">Resultado (Real)</th>
-                        <th className="p-4 font-bold text-center">Obs / Comentarios</th>
-                        <th className="p-4 font-bold text-center">Evidencia</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                    {checklistDef.map((item, idx) => {
-                         const data = getValue(item.id);
-                         const val = data?.value;
-                         const isBool = item.type === 'boolean';
-                         const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
-                         
-                         return (
-                            <tr key={item.id} className={`${rowBg} hover:bg-indigo-50/30 transition`}>
-                                <td className="p-4 font-medium text-slate-700">
-                                    {item.label}
-                                </td>
-                                <td className="p-4 text-center text-slate-400 font-mono text-xs">
-                                    {item.reference || '-'} {item.unit}
-                                </td>
-                                <td className="p-4 text-center">
-                                    <span className={`font-bold text-base ${
-                                        item.id === 'w13' ? 'text-emerald-600' : 'text-slate-800'
-                                    }`}>
-                                        {isBool ? (val ? 'Cumple' : 'No Cumple') : (
-                                            item.id === 'w13' ? `$${val}` : `${val || '--'} ${item.unit || ''}`
-                                        )}
-                                    </span>
-                                </td>
-                                <td className="p-4 text-center text-xs text-slate-500 italic max-w-[200px]">
-                                    {data?.comment || '-'}
-                                </td>
-                                <td className="p-4 text-center">
-                                    {isImageExpired(report.createdAt) ? (
-                                        <span className="text-[10px] text-slate-300 font-bold bg-slate-50 px-2 py-1 rounded border border-slate-100 cursor-help" title="Eliminado automáticamente por antigüedad">
-                                            EXPIRADO
+        {/* SPECIAL REPORT LAYOUT */}
+        {report.type === 'special' ? (
+             <div className="p-6">
+                 {checklistDef.map((item) => {
+                     const data = getValue(item.id);
+                     if (!data) return null;
+                     
+                     return (
+                         <div key={item.id} className="mb-6">
+                             <h3 className="text-lg font-bold text-slate-800 mb-2">{item.label}</h3>
+                             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                 {data.value}
+                             </div>
+                             
+                             {/* Evidence Photo for Special Report */}
+                             {data.photoUrl && (
+                                 <div className="mt-4">
+                                     <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase">Evidencia Fotográfica</h4>
+                                     <div className="relative group inline-block">
+                                        <img 
+                                            src={data.photoUrl} 
+                                            alt="Evidencia" 
+                                            className="max-h-64 rounded-lg border border-slate-300 cursor-pointer shadow-sm hover:opacity-90 transition"
+                                            onClick={() => setPreviewImage(data.photoUrl || null)}
+                                        />
+                                        <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full text-white pointer-events-none">
+                                            <ZoomIn className="h-4 w-4" />
+                                        </div>
+                                     </div>
+                                 </div>
+                             )}
+                         </div>
+                     );
+                 })}
+             </div>
+        ) : (
+            /* STANDARD TABLE LAYOUT */
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                            <th className="p-4 font-bold">Parámetro de Control</th>
+                            <th className="p-4 font-bold text-center">Referencia (Ideal)</th>
+                            <th className="p-4 font-bold text-center">Resultado (Real)</th>
+                            <th className="p-4 font-bold text-center">Obs / Comentarios</th>
+                            <th className="p-4 font-bold text-center">Evidencia</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                        {checklistDef.map((item, idx) => {
+                            const data = getValue(item.id);
+                            const val = data?.value;
+                            const isBool = item.type === 'boolean';
+                            const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                            
+                            return (
+                                <tr key={item.id} className={`${rowBg} hover:bg-indigo-50/30 transition`}>
+                                    <td className="p-4 font-medium text-slate-700">
+                                        {item.label}
+                                    </td>
+                                    <td className="p-4 text-center text-slate-400 font-mono text-xs">
+                                        {item.reference || '-'} {item.unit}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <span className={`font-bold text-base ${
+                                            item.id === 'w13' ? 'text-emerald-600' : 'text-slate-800'
+                                        }`}>
+                                            {isBool ? (val ? 'Cumple' : 'No Cumple') : (
+                                                item.id === 'w13' ? `$${val}` : `${val || '--'} ${item.unit || ''}`
+                                            )}
                                         </span>
-                                    ) : (
-                                        data?.photoUrl ? (
-                                            <div className="relative group inline-block">
-                                                <img 
-                                                    src={data.photoUrl} 
-                                                    alt="Evidencia" 
-                                                    className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:opacity-80 transition z-10 relative bg-white"
-                                                    onClick={() => setPreviewImage(data.photoUrl || null)}
-                                                />
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-20 transition pointer-events-none rounded">
-                                                    <ZoomIn className="text-white opacity-0 group-hover:opacity-100 h-3 w-3" />
-                                                </div>
-                                            </div>
+                                    </td>
+                                    <td className="p-4 text-center text-xs text-slate-500 italic max-w-[200px]">
+                                        {data?.comment || '-'}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        {isImageExpired(report.createdAt) ? (
+                                            <span className="text-[10px] text-slate-300 font-bold bg-slate-50 px-2 py-1 rounded border border-slate-100 cursor-help" title="Eliminado automáticamente por antigüedad">
+                                                EXPIRADO
+                                            </span>
                                         ) : (
-                                            <span className="text-xs text-red-300 italic font-bold">Sin foto</span>
-                                        )
-                                    )}
-                                </td>
-                            </tr>
-                         );
-                    })}
-                </tbody>
-            </table>
-        </div>
+                                            data?.photoUrl ? (
+                                                <div className="relative group inline-block">
+                                                    <img 
+                                                        src={data.photoUrl} 
+                                                        alt="Evidencia" 
+                                                        className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:opacity-80 transition z-10 relative bg-white"
+                                                        onClick={() => setPreviewImage(data.photoUrl || null)}
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-20 transition pointer-events-none rounded">
+                                                        <ZoomIn className="text-white opacity-0 group-hover:opacity-100 h-3 w-3" />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-red-300 italic font-bold">Sin foto</span>
+                                            )
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        )}
       </div>
 
       {/* ACTIONS FOOTER */}

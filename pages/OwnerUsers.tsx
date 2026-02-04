@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { User, Role, Machine } from '../types';
-import { ArrowLeft, Plus, UserPlus, Link as LinkIcon, Trash2, Mail, User as UserIcon, Edit2, Phone, AlertCircle, Server, Shield, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Plus, UserPlus, Link as LinkIcon, Trash2, Mail, User as UserIcon, Edit2, Phone, AlertCircle, Server, Shield, ShieldCheck, Wrench } from 'lucide-react';
 
 export const OwnerUsers: React.FC = () => {
   const navigate = useNavigate();
@@ -52,7 +52,7 @@ export const OwnerUsers: React.FC = () => {
   const openEditForm = (u: User) => {
     setEditingId(u.id);
     setNewName(u.name);
-    // CORRECCIÓN: Si es CONDO_ADMIN, preferir username, si no existe, usar email (ya que la DB unificada usa email para todo)
+    // CORRECCIÓN: Si es CONDO_ADMIN, preferir username, si no existe, usar email
     setNewIdentifier(u.role === Role.CONDO_ADMIN ? (u.username || u.email || '') : (u.email || ''));
     setNewPhone(u.phone || '');
     setNewPass(''); 
@@ -73,7 +73,7 @@ export const OwnerUsers: React.FC = () => {
 
       // VALIDACIÓN DE MÁQUINA:
       // - Condominios: OBLIGATORIO tener máquina.
-      // - Técnicos: OPCIONAL (pueden escanear cualquiera).
+      // - Técnicos: NO APLICA (ven todo/escanean).
       // - Propietarios: NO APLICA (ven todo).
       if (newRole === Role.CONDO_ADMIN && !newMachineId) {
           throw new Error("⚠️ ERROR: Debes asignar una MÁQUINA a un usuario de Condominio.");
@@ -83,7 +83,8 @@ export const OwnerUsers: React.FC = () => {
         name: newName,
         role: newRole,
         phone: newPhone,
-        assignedMachineId: (newRole === Role.OWNER) ? null : newMachineId 
+        // Solo Condo Admins tienen máquina asignada
+        assignedMachineId: (newRole === Role.CONDO_ADMIN) ? newMachineId : null 
       };
 
       if (newRole === Role.CONDO_ADMIN) {
@@ -200,7 +201,7 @@ export const OwnerUsers: React.FC = () => {
                       <span className={`text-sm font-bold ${newRole === Role.TECHNICIAN ? 'text-brand-800' : 'text-slate-700'}`}>Técnico</span>
                    </label>
 
-                   {/* OPCIÓN PROPIETARIO (NUEVA) */}
+                   {/* OPCIÓN PROPIETARIO */}
                    <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition ${newRole === Role.OWNER ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-500' : 'bg-white hover:bg-slate-50'}`}>
                       <input type="radio" name="role" checked={newRole === Role.OWNER} onChange={() => setNewRole(Role.OWNER)} className="mr-2 accent-indigo-600"/>
                       <span className={`text-sm font-bold ${newRole === Role.OWNER ? 'text-indigo-800' : 'text-slate-700'}`}>Propietario / Admin</span>
@@ -262,21 +263,21 @@ export const OwnerUsers: React.FC = () => {
                />
             </div>
 
-            {/* Selector Máquina (Solo si NO es Propietario) */}
-            {newRole !== Role.OWNER && (
+            {/* Selector Máquina (SOLO PARA CONDOMINIOS) */}
+            {newRole === Role.CONDO_ADMIN && (
                 <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200 mt-2">
                     <label className="block text-sm font-bold text-slate-700 uppercase mb-2 flex items-center">
                         <Server className="h-4 w-4 mr-2 text-indigo-600" />
-                        Máquina Asignada {newRole === Role.CONDO_ADMIN ? '(Requerido)' : '(Opcional)'}
+                        Máquina Asignada (Requerido)
                     </label>
                     {machines.length > 0 ? (
                         <select
-                            required={newRole === Role.CONDO_ADMIN}
+                            required
                             value={newMachineId}
                             onChange={(e) => setNewMachineId(e.target.value)}
                             className="w-full border border-slate-300 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-slate-700"
                         >
-                            <option value="">-- {newRole === Role.TECHNICIAN ? 'Ninguna (Escaneo Libre)' : 'Seleccionar Máquina'} --</option>
+                            <option value="">-- Seleccionar Máquina --</option>
                             {machines.map(m => (
                                 <option key={m.id} value={m.id}>
                                     {m.id} - {m.location}
@@ -309,9 +310,8 @@ export const OwnerUsers: React.FC = () => {
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
             <tr>
               <th className="p-4">Usuario</th>
-              <th className="p-4">Contacto</th>
               <th className="p-4">Rol</th>
-              <th className="p-4">Máquina Asignada</th>
+              <th className="p-4 hidden sm:table-cell">Máquina Asignada</th>
               <th className="p-4 text-right">Acciones</th>
             </tr>
           </thead>
@@ -324,7 +324,8 @@ export const OwnerUsers: React.FC = () => {
                              u.role === Role.OWNER ? 'bg-indigo-100 text-indigo-600' : 
                              u.role === Role.TECHNICIAN ? 'bg-blue-100 text-blue-600' : 'bg-teal-100 text-teal-600'
                         }`}>
-                            {u.role === Role.OWNER ? <ShieldCheck className="w-4 h-4"/> : <UserIcon className="w-4 h-4"/>}
+                            {u.role === Role.OWNER ? <ShieldCheck className="w-4 h-4"/> : 
+                             u.role === Role.TECHNICIAN ? <Wrench className="w-4 h-4"/> : <UserIcon className="w-4 h-4"/>}
                         </div>
                         <div>
                             <p className="font-bold text-slate-800">{u.name}</p>
@@ -333,12 +334,6 @@ export const OwnerUsers: React.FC = () => {
                             </p>
                         </div>
                     </div>
-                  </td>
-                  <td className="p-4 text-sm text-slate-600">
-                     <div className="flex items-center text-xs bg-slate-100 px-2 py-1 rounded w-fit">
-                        <Phone className="h-3 w-3 mr-1 text-slate-400" />
-                        {u.phone || 'Sin tel'}
-                     </div>
                   </td>
                   <td className="p-4">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -350,22 +345,20 @@ export const OwnerUsers: React.FC = () => {
                        u.role === Role.TECHNICIAN ? 'TÉCNICO' : 'CONDOMINIO'}
                     </span>
                   </td>
-                  <td className="p-4">
-                     {u.role === Role.OWNER ? (
-                         <span className="text-xs text-slate-400 italic">Acceso Total</span>
-                     ) : (
+                  <td className="p-4 hidden sm:table-cell">
+                     {u.role === Role.CONDO_ADMIN ? (
                         machines.length > 0 ? (
                               <div className="flex items-center space-x-2">
                                 <LinkIcon className="h-4 w-4 text-slate-400" />
                                 <select 
-                                  className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-indigo-500 max-w-[150px] bg-white"
+                                  className="text-sm border-slate-200 rounded p-1 focus:ring-2 focus:ring-teal-500 max-w-[150px] bg-white text-slate-700 font-medium"
                                   value={u.assignedMachineId || ""}
                                   onChange={(e) => handleAssignMachine(u.id, e.target.value)}
                                 >
                                   <option value="">-- Sin Asignar --</option>
                                   {machines.map(m => (
                                     <option key={m.id} value={m.id}>
-                                      {m.id} - {m.location}
+                                      {m.location}
                                     </option>
                                   ))}
                                 </select>
@@ -373,6 +366,8 @@ export const OwnerUsers: React.FC = () => {
                           ) : (
                               <span className="text-red-400 text-xs font-bold">Sin máquinas</span>
                           )
+                     ) : (
+                         <span className="text-xs text-slate-400 italic">Global / Multisitio</span>
                      )}
                   </td>
                   <td className="p-4 text-right">

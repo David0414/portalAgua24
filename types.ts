@@ -1,3 +1,4 @@
+
 export enum Role {
   TECHNICIAN = 'TECHNICIAN',
   OWNER = 'OWNER',
@@ -23,9 +24,9 @@ export enum ReportStatus {
 export interface ChecklistItemDefinition {
   id: string;
   label: string;
-  type: 'boolean' | 'number' | 'text' | 'photo';
+  type: 'boolean' | 'number' | 'text' | 'photo' | 'textarea';
   required: boolean;
-  section: 'weekly' | 'monthly';
+  section: 'weekly' | 'monthly' | 'special';
   reference?: string; 
   unit?: string; 
   min?: number; 
@@ -50,7 +51,7 @@ export interface Report {
   updatedAt: string;
   data: ChecklistValue[];
   adminComments?: string;
-  type: 'weekly' | 'monthly';
+  type: 'weekly' | 'monthly' | 'special';
 }
 
 export interface Machine {
@@ -58,6 +59,8 @@ export interface Machine {
   location: string;
   lastMaintenance?: string;
   assignedToUserId?: string; 
+  nextWeeklyVisit?: string; // ISO Date YYYY-MM-DD
+  nextMonthlyVisit?: string; // ISO Date YYYY-MM-DD
 }
 
 export interface ChartData {
