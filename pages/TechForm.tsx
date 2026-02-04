@@ -5,7 +5,7 @@ import { ChecklistValue, ReportStatus, Report, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { sendWhatsAppNotification, generateAdminReviewLink } from '../services/whatsapp';
-import { CheckCircle, Save, MessageCircle, AlertTriangle, MessageSquare, Loader2 } from 'lucide-react';
+import { CheckCircle, Save, MessageCircle, AlertTriangle, MessageSquare, Loader2, Camera } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export const TechForm: React.FC = () => {
@@ -34,13 +34,10 @@ export const TechForm: React.FC = () => {
           setPreviousComments(report.adminComments || null);
           const valMap: Record<string, ChecklistValue> = {};
           
-          // FIX: Usamos 'as any' para evitar el error "Type 'unknown[]' is not assignable".
-          // Esto fuerza a TypeScript a confiar en que la data es un arreglo.
           const rawData = report.data as any;
           
           if (Array.isArray(rawData)) {
             rawData.forEach((item: any) => {
-              // Protección defensiva: Solo agregar si tiene itemId válido para evitar error "{}"
               if (item && item.itemId) {
                 valMap[item.itemId] = item;
               }
@@ -83,7 +80,7 @@ export const TechForm: React.FC = () => {
     for (const item of checklist) {
       const entry = values[item.id];
       
-      // 1. Validar Valor Requerido
+      // 1. Validar Valor Requerido (El valor SI es obligatorio)
       if (item.required) {
         if (!entry || entry.value === undefined || entry.value === "") {
              alert(`Falta completar el campo: "${item.label}"`);
@@ -93,13 +90,7 @@ export const TechForm: React.FC = () => {
         }
       }
 
-      // 2. FOTO OBLIGATORIA (Mandatory Photo Requirement)
-      if (!entry?.photoUrl) {
-          alert(`FOTO OBLIGATORIA: Debes subir una foto para "${item.label}"`);
-          const element = document.getElementById(`item-${item.id}`);
-          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          return false;
-      }
+      // 2. FOTO YA NO ES OBLIGATORIA (Eliminado el bloque de validación de foto)
     }
     return true;
   };
@@ -109,11 +100,9 @@ export const TechForm: React.FC = () => {
 
     setLoading(true);
     try {
-      // FIX: Casting explícito para asegurar a TS que es un array de ChecklistValue
       const reportData = Object.values(values) as ChecklistValue[];
 
       if (reportIdToEdit) {
-        // Update existing
         await api.updateReport(reportIdToEdit, {
             data: reportData,
             technicianId: user!.phone,
@@ -123,7 +112,6 @@ export const TechForm: React.FC = () => {
         if (r) setSubmittedReport(r);
 
       } else {
-        // Create new
         const newReport = await api.submitReport({
           machineId: machineId!,
           technicianId: user!.phone!,
@@ -147,12 +135,11 @@ export const TechForm: React.FC = () => {
       
       setLoading(true); 
       try {
-          // Búsqueda Dinámica del Administrador
           const users = await api.getUsers();
           const admin = users.find(u => u.role === Role.OWNER && u.phone);
 
           if (!admin || !admin.phone) {
-              alert("No se encontró un número de administrador (Owner) registrado en el sistema. Por favor contacte soporte.");
+              alert("No se encontró un número de administrador (Owner) registrado en el sistema.");
               setLoading(false);
               return;
           }
@@ -178,7 +165,7 @@ export const TechForm: React.FC = () => {
                       <CheckCircle className="h-10 w-10 text-green-600" />
                   </div>
                   <h2 className="text-2xl font-bold text-slate-800 mb-2">¡Reporte Enviado!</h2>
-                  <p className="text-slate-500 mb-8">La información ha sido registrada correctamente en el sistema.</p>
+                  <p className="text-slate-500 mb-8">La información ha sido registrada correctamente.</p>
                   
                   <button 
                     onClick={handleNotifyAdmin}
@@ -202,7 +189,6 @@ export const TechForm: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto pb-20">
-      {/* Header */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 sticky top-20 z-10">
         <div className="flex justify-between items-center">
             <div>
@@ -250,7 +236,6 @@ export const TechForm: React.FC = () => {
             </div>
             
             <div className="space-y-4">
-                {/* Input Field */}
                 {item.type === 'boolean' ? (
                     <div className="flex gap-4">
                         <button
@@ -294,9 +279,11 @@ export const TechForm: React.FC = () => {
                     </div>
                 )}
 
-                {/* Photo Upload (Mandatory) */}
+                {/* Photo Upload (Opcional) */}
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <p className="text-xs font-bold text-slate-400 uppercase mb-2">Evidencia Fotográfica (Requerido)</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center">
+                        <Camera className="h-3 w-3 mr-1" /> Evidencia Fotográfica (Opcional)
+                    </p>
                     <PhotoUpload
                         label={item.label}
                         value={values[item.id]?.photoUrl}
@@ -322,7 +309,6 @@ export const TechForm: React.FC = () => {
         ))}
       </div>
 
-      {/* Floating Action Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
         <div className="max-w-3xl mx-auto">
              <button

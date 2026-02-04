@@ -6,26 +6,19 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
   { id: 'w2', label: 'Sanitización interna de ventana', type: 'boolean', required: true, section: 'weekly', reference: 'Desinfectado' },
   { id: 'w3', label: 'Limpieza general interior (Filtros, tuberías)', type: 'boolean', required: true, section: 'weekly', reference: 'Sin Fugas/Suciedad' },
   
-  // --- Calidad de Agua (Valores Exactos de Imagen) ---
-  { id: 'w4', label: 'Lectura de PH (Entrada)', type: 'number', required: true, section: 'weekly', reference: '6.8 - 7.8', unit: 'pH', min: 6.8, max: 7.8 },
-  { id: 'w5', label: 'Lectura de PH (Salida)', type: 'number', required: true, section: 'weekly', reference: '6.8 - 7.8', unit: 'pH', min: 6.8, max: 7.8 },
-  
-  { id: 'w6', label: 'Lectura de CL (Entrada)', type: 'number', required: true, section: 'weekly', reference: '0.2 - 1.5', unit: 'mg/L', min: 0.2, max: 1.5 },
-  { id: 'w7', label: 'Lectura de CL (Salida)', type: 'number', required: true, section: 'weekly', reference: '0.2 - 1.5', unit: 'mg/L', min: 0.2, max: 1.5 },
-  
-  // Ajuste preciso texto TDS según imagen
-  { id: 'w8', label: 'Lectura de TDS (Entrada)', type: 'number', required: true, section: 'weekly', reference: '50-300 (Excelente/Muy Buena)', unit: 'mg/L', min: 50, max: 300 },
-  { id: 'w9', label: 'Lectura de TDS (Salida)', type: 'number', required: true, section: 'weekly', reference: '50-300 (Excelente/Muy Buena)', unit: 'mg/L', min: 50, max: 300 },
-  
-  { id: 'w10', label: 'Lectura de Dureza (Entrada)', type: 'number', required: true, section: 'weekly', reference: '< 180', unit: 'mg/L', max: 180 },
-  { id: 'w11', label: 'Lectura de Dureza (Salida)', type: 'number', required: true, section: 'weekly', reference: '< 180', unit: 'mg/L', max: 180 },
+  // --- Calidad de Agua (Lecturas Únicas) ---
+  // ACTUALIZADO: pH 6.5 a 8.5
+  { id: 'w_ph', label: 'Lectura de pH', type: 'number', required: true, section: 'weekly', reference: '6.5 - 8.5', unit: 'pH', min: 6.5, max: 8.5 },
+  { id: 'w_cl', label: 'Lectura de Cloro (Cl)', type: 'number', required: true, section: 'weekly', reference: '0.2 - 1.5', unit: 'mg/L', min: 0.2, max: 1.5 },
+  { id: 'w_tds', label: 'Lectura de TDS (Sólidos Disueltos)', type: 'number', required: true, section: 'weekly', reference: '50 - 300', unit: 'ppm', min: 50, max: 300 },
+  { id: 'w_hardness', label: 'Lectura de Dureza', type: 'number', required: true, section: 'weekly', reference: '< 200', unit: 'mg/L', max: 200 },
 
   // --- Sistema ---
   { id: 'w12', label: 'Revisión funcionamiento de bombas', type: 'boolean', required: true, section: 'weekly', reference: 'Operativo' },
   { id: 'w14', label: 'Acomodo de monedas en Hopper', type: 'boolean', required: true, section: 'weekly', reference: 'Lleno' },
 
   // --- Dinero y Ventas ---
-  { id: 'w_exchange', label: 'Cambio ingresado (Monedas $1)', type: 'number', required: true, section: 'weekly', reference: 'Foto Obligatoria', unit: 'MXN' },
+  { id: 'w_exchange', label: 'Cambio ingresado (Monedas $1)', type: 'number', required: true, section: 'weekly', reference: 'Opcional', unit: 'MXN' },
   { id: 'w_sales_count', label: 'Ventas de la semana (Cantidad)', type: 'number', required: true, section: 'weekly', reference: 'Lectura Pantalla', unit: 'Ventas' },
   { id: 'w13', label: 'Ingreso Total Semanal ($)', type: 'number', required: true, section: 'weekly', reference: 'Foto Pantalla', unit: 'MXN' },
 
