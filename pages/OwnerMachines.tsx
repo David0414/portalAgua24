@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/db';
 import { Machine } from '../types';
-import { ArrowLeft, Plus, Trash2, MapPin, Server, QrCode, X, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, MapPin, Server, QrCode, X, Download, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 
@@ -11,6 +11,9 @@ export const OwnerMachines: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [qrModalMachine, setQrModalMachine] = useState<Machine | null>(null);
+  
+  // Edit State
+  const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
 
   // Form State
   const [newId, setNewId] = useState('');
@@ -27,22 +30,27 @@ export const OwnerMachines: React.FC = () => {
     fetchMachines();
   }, []);
 
-  const handleAddMachine = async (e: React.FormEvent) => {
+  const handleSaveMachine = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newId || !newLocation) return;
     
     try {
-      await api.addMachine({
-        id: newId,
-        location: newLocation,
-        lastMaintenance: 'Nuevo'
-      });
-      setNewId('');
-      setNewLocation('');
-      setIsAdding(false);
+      if (editingMachine) {
+         // Update Logic
+         await api.updateMachine(editingMachine.id, { location: newLocation });
+      } else {
+         // Create Logic
+         await api.addMachine({
+            id: newId,
+            location: newLocation,
+            lastMaintenance: 'Nuevo'
+         });
+      }
+      
+      resetForm();
       fetchMachines();
     } catch (error: any) {
-      alert(error.message || "Error al agregar máquina");
+      alert(error.message || "Error al guardar máquina");
     }
   };
 
@@ -69,6 +77,27 @@ export const OwnerMachines: React.FC = () => {
       }
   };
 
+  const openAdd = () => {
+      setEditingMachine(null);
+      setNewId('');
+      setNewLocation('');
+      setIsAdding(true);
+  };
+
+  const openEdit = (m: Machine) => {
+      setIsAdding(false);
+      setEditingMachine(m);
+      setNewId(m.id);
+      setNewLocation(m.location);
+  };
+
+  const resetForm = () => {
+      setIsAdding(false);
+      setEditingMachine(null);
+      setNewId('');
+      setNewLocation('');
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
       <button onClick={() => navigate('/owner/dashboard')} className="flex items-center text-slate-500 hover:text-indigo-600 mb-4 transition">
@@ -81,7 +110,7 @@ export const OwnerMachines: React.FC = () => {
           <p className="text-slate-500 mt-1">Administra el inventario de purificadoras activas.</p>
         </div>
         <button 
-          onClick={() => setIsAdding(true)}
+          onClick={openAdd}
           className="mt-4 md:mt-0 bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center font-bold shadow hover:bg-indigo-700 transition"
         >
           <Plus className="h-5 w-5 mr-1" />
@@ -89,20 +118,23 @@ export const OwnerMachines: React.FC = () => {
         </button>
       </div>
 
-      {/* Add Modal / Inline Form */}
-      {isAdding && (
+      {/* Add/Edit Modal / Inline Form */}
+      {(isAdding || editingMachine) && (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-indigo-100 animate-in fade-in slide-in-from-top-4">
-          <h3 className="font-bold text-lg mb-4 text-indigo-900">Registrar Nueva Unidad</h3>
-          <form onSubmit={handleAddMachine} className="flex flex-col md:flex-row gap-4 items-end">
+          <h3 className="font-bold text-lg mb-4 text-indigo-900">
+              {editingMachine ? 'Editar Máquina' : 'Registrar Nueva Unidad'}
+          </h3>
+          <form onSubmit={handleSaveMachine} className="flex flex-col md:flex-row gap-4 items-end">
             <div className="flex-1 w-full">
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">ID Único (Para QR)</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">ID Único (QR)</label>
               <input 
                 type="text" 
                 value={newId}
                 onChange={e => setNewId(e.target.value)}
                 placeholder="Ej: M-005"
-                className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none"
-                autoFocus
+                className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-slate-100 disabled:text-slate-500"
+                disabled={!!editingMachine} // No editar ID una vez creado
+                autoFocus={!editingMachine}
               />
             </div>
             <div className="flex-[2] w-full">
@@ -113,12 +145,13 @@ export const OwnerMachines: React.FC = () => {
                 onChange={e => setNewLocation(e.target.value)}
                 placeholder="Ej: Condominio Las Palmas - Lobby"
                 className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                autoFocus={!!editingMachine}
               />
             </div>
             <div className="flex space-x-2 w-full md:w-auto">
               <button 
                 type="button" 
-                onClick={() => setIsAdding(false)}
+                onClick={resetForm}
                 className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50"
               >
                 Cancelar
@@ -127,7 +160,7 @@ export const OwnerMachines: React.FC = () => {
                 type="submit" 
                 className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700"
               >
-                Guardar
+                {editingMachine ? 'Actualizar' : 'Guardar'}
               </button>
             </div>
           </form>
@@ -152,13 +185,22 @@ export const OwnerMachines: React.FC = () => {
                   <div className="bg-indigo-50 p-3 rounded-lg">
                     <Server className="h-6 w-6 text-indigo-600" />
                   </div>
-                  <button 
-                    onClick={() => handleDelete(machine.id)}
-                    className="text-slate-300 hover:text-red-500 transition p-1"
-                    title="Eliminar máquina"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex space-x-1">
+                      <button 
+                        onClick={() => openEdit(machine)}
+                        className="text-slate-300 hover:text-indigo-500 transition p-1"
+                        title="Editar máquina"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(machine.id)}
+                        className="text-slate-300 hover:text-red-500 transition p-1"
+                        title="Eliminar máquina"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                  </div>
                 </div>
                 
                 <h3 className="text-xl font-bold text-slate-800 mb-1">{machine.id}</h3>

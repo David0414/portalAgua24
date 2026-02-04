@@ -33,18 +33,17 @@ export const CondoDashboard: React.FC = () => {
          setMachineInfo({ id: machineDetails.id, location: machineDetails.location });
       }
 
-      const allReports = await api.getAllReports();
+      // OPTIMIZATION: Fetch ONLY reports for this machine (Limit 50)
+      const machineReports = await api.getReportsByMachine(machineId, 50);
       
-      // 2. Filter reports: Match Machine ID AND ensure they are APPROVED
-      const machineReports = allReports
-        .filter(r => r.machineId === machineId && r.status === ReportStatus.APPROVED)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // Filter for APPROVED just in case, though API should ideally handle this (filtering here for safety)
+      const approvedReports = machineReports.filter(r => r.status === ReportStatus.APPROVED);
 
-      setHistory(machineReports);
-      setLatestReport(machineReports[0] || null);
+      setHistory(approvedReports);
+      setLatestReport(approvedReports[0] || null);
 
       // 3. Prepare Chart Data (Using NEW IDs: w_ph, w_cl, w_tds, w_hardness)
-      const weeklyReports = machineReports.filter(r => r.type === 'weekly');
+      const weeklyReports = approvedReports.filter(r => r.type === 'weekly');
       
       const graphData = weeklyReports.slice(0, 10).reverse().map(r => {
         const getVal = (id: string) => {
