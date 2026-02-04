@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Image as ImageIcon, Zap } from 'lucide-react';
 import { api } from '../services/db';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -13,23 +13,18 @@ export const TechScan: React.FC = () => {
   
   // Input para subir archivo (fallback)
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
+  // Auto-start scanning on mount for "Arrive & Scan" feel
   useEffect(() => {
-    // Limpieza agresiva al salir
+    // Check if we can auto-start
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
+    if (isSecure) {
+        startScanning();
+    }
+
     return () => {
-      if (scannerRef.current) {
-        try {
-            if (scannerRef.current.isScanning) {
-                scannerRef.current.stop().then(() => {
-                    scannerRef.current?.clear();
-                }).catch(console.warn);
-            } else {
-                scannerRef.current.clear().catch(console.warn);
-            }
-        } catch (e) { console.warn(e); }
-      }
+      stopScanning();
     };
   }, []);
 
@@ -37,32 +32,25 @@ export const TechScan: React.FC = () => {
       setError('');
       setScanning(true);
 
-      // Verificación de HTTPS (Crucial para móviles)
       const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
       if (!isSecure) {
-          setError("Tu navegador bloquea la cámara porque la conexión no es segura (HTTPS). Usa la opción 'Subir Foto'.");
+          setError("HTTPS requerido para cámara. Usa 'Subir Foto'.");
           setScanning(false);
           return;
       }
 
-      // Pequeño delay para renderizar el div
       setTimeout(async () => {
           try {
-              // 1. Solicitar permiso explícito primero (Fix para iOS/Android)
-              // Esto despierta al navegador antes de que la librería intente cargar
-              const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-              // Soltamos el stream inmediatamente, solo queríamos el permiso
-              stream.getTracks().forEach(track => track.stop());
-
-              // 2. Iniciar librería
               if (!scannerRef.current) {
                   scannerRef.current = new Html5Qrcode("reader");
               }
 
+              // Configuración optimizada para escaneo rápido
               const config = { 
-                  fps: 10, 
-                  qrbox: { width: 250, height: 250 },
-                  aspectRatio: 1.0
+                  fps: 15, 
+                  qrbox: { width: 280, height: 280 },
+                  aspectRatio: 1.0,
+                  disableFlip: false
               };
 
               await scannerRef.current.start(
@@ -73,18 +61,16 @@ export const TechScan: React.FC = () => {
                       stopScanning();
                   },
                   (errorMessage) => {
-                      // Ignorar errores por frame
+                      // Ignorar errores de frame vacíos
                   }
               );
           } catch (err: any) {
-              console.error("Error cámara:", err);
-              let msg = "No se pudo iniciar la cámara.";
-              if (err.name === 'NotAllowedError') msg = "Permiso de cámara denegado. Habilítalo en la configuración del navegador.";
-              if (err.name === 'NotFoundError') msg = "No se encontró cámara trasera.";
-              setError(msg);
+              console.warn("Auto-start camera failed:", err);
+              // Si falla el auto-start, dejamos que el usuario lo intente manual o suba foto
               setScanning(false);
+              if (err.name === 'NotAllowedError') setError("Permiso de cámara denegado.");
           }
-      }, 200);
+      }, 300);
   };
 
   const stopScanning = async () => {
@@ -111,12 +97,15 @@ export const TechScan: React.FC = () => {
       try {
           const machine = await api.getMachine(cleanId);
           if (machine) {
+              // Sonido de éxito (opcional, visual feedback es mejor)
+              if (navigator.vibrate) navigator.vibrate(200);
               navigate(`/tech/start/${cleanId}`);
           } else {
-              setError(`ID "${cleanId}" no encontrado.`);
+              setError(`Máquina "${cleanId}" no encontrada en el sistema.`);
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
           }
       } catch (e) {
-          setError("Error verificando máquina.");
+          setError("Error de conexión verificando la máquina.");
       } finally {
           setLoading(false);
       }
@@ -137,7 +126,7 @@ export const TechScan: React.FC = () => {
         })
         .catch(err => {
             console.error(err);
-            setError("No se detectó ningún código QR válido en la imagen.");
+            setError("No se detectó código QR en la imagen.");
             setLoading(false);
         });
   };
@@ -149,109 +138,118 @@ export const TechScan: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-slate-200 mt-6 md:mt-10">
-      <div className="flex flex-col items-center mb-6">
-        <div className={`p-4 rounded-full transition-all duration-300 ${scanning ? 'bg-indigo-100' : 'bg-slate-100'}`}>
-          <QrCode className={`h-12 w-12 ${scanning ? 'text-indigo-600' : 'text-slate-600'}`} />
+    <div className="max-w-md mx-auto space-y-6">
+      
+      {/* Header específico de la tarea */}
+      {!scanning && (
+        <div className="text-center py-4">
+            <h2 className="text-2xl font-bold text-slate-800">Escanear Máquina</h2>
+            <p className="text-slate-500">Apunta al código QR del equipo</p>
         </div>
-        <h2 className="text-2xl font-bold mt-4">
-          Escanear Máquina
-        </h2>
-        <p className="text-slate-500 text-center mt-2 text-sm">
-          Apunta al código QR para registrar servicio.
-        </p>
+      )}
+
+      {/* SCANNER VIEWPORT */}
+      <div className={`relative rounded-2xl overflow-hidden shadow-2xl border-4 ${scanning ? 'border-blue-500' : 'border-slate-200'} bg-black transition-all duration-300`}>
+           
+           {/* Loading Overlay inside Scanner */}
+           {loading && (
+               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm text-white animate-in fade-in">
+                   <Loader2 className="h-12 w-12 animate-spin mb-4 text-blue-400" />
+                   <p className="font-bold text-lg">Verificando Máquina...</p>
+               </div>
+           )}
+
+           <div id="reader" className="w-full min-h-[350px] bg-black"></div>
+           
+           {scanning && (
+               <>
+                {/* Overlay Lines to simulate viewfinder */}
+                <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+                    <div className="w-64 h-64 border-2 border-white/50 rounded-xl relative">
+                        <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl-lg"></div>
+                        <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr-lg"></div>
+                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl-lg"></div>
+                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1 rounded-br-lg"></div>
+                    </div>
+                </div>
+                <div className="absolute bottom-4 left-0 right-0 text-center z-20">
+                    <p className="text-white/90 text-sm font-medium bg-black/40 inline-block px-4 py-1 rounded-full backdrop-blur-md">
+                        Escaneando...
+                    </p>
+                </div>
+                <button 
+                    onClick={stopScanning}
+                    className="absolute top-4 right-4 z-30 bg-white/20 text-white p-2 rounded-full hover:bg-white/30 backdrop-blur-md"
+                >
+                    <X className="h-6 w-6" />
+                </button>
+               </>
+           )}
+
+           {!scanning && !loading && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 z-10">
+                   <QrCode className="h-16 w-16 text-slate-300 mb-4" />
+                   <button
+                        onClick={startScanning}
+                        className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-blue-700 flex items-center transform hover:scale-105 transition"
+                    >
+                        <Camera className="mr-2 h-5 w-5" />
+                        Activar Cámara
+                   </button>
+               </div>
+           )}
       </div>
 
-      <div className="space-y-6">
-        {/* Lector de QR */}
-        {scanning ? (
-            <div className="relative bg-black rounded-xl overflow-hidden shadow-inner">
-                 <div id="reader" className="w-full min-h-[300px]"></div>
-                 
-                 <button 
-                    onClick={stopScanning}
-                    className="absolute top-3 right-3 z-20 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 backdrop-blur-md"
-                 >
-                    <X className="h-5 w-5" />
-                 </button>
-                 
-                 <div className="absolute bottom-4 left-0 right-0 text-center text-white/90 text-xs bg-black/40 py-1 backdrop-blur-sm mx-4 rounded-full">
-                    Mantén el código centrado
-                 </div>
-            </div>
-        ) : (
-            <div className="space-y-3">
-                <button
-                    type="button"
-                    onClick={startScanning}
-                    className="w-full flex justify-center items-center py-4 px-4 rounded-xl shadow-md text-lg font-bold text-white bg-brand-600 hover:bg-brand-700 transition transform hover:scale-[1.02]"
-                >
-                    <Camera className="mr-2 h-6 w-6" />
-                    Abrir Cámara
-                </button>
-                
-                <input 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-start animate-in slide-in-from-top-2">
+            <AlertTriangle className="h-5 w-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            <p className="text-red-700 font-medium text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Manual Options */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-bold text-slate-400 uppercase mb-3 text-center">Opciones Alternativas</p>
+          
+          <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-col items-center justify-center p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition"
+              >
+                  <ImageIcon className="h-6 w-6 text-slate-500 mb-2" />
+                  <span className="text-xs font-bold text-slate-600">Subir Foto</span>
+              </button>
+              
+              <div className="relative">
+                  <input 
                     type="file" 
                     accept="image/*"
                     ref={fileInputRef}
                     className="hidden"
                     onChange={handleFileUpload}
-                />
-                
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex justify-center items-center py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold bg-white hover:bg-slate-50 transition"
-                >
-                    <ImageIcon className="mr-2 h-5 w-5 text-slate-500" />
-                    Subir Foto de QR
-                </button>
-            </div>
-        )}
+                  />
+              </div>
 
-        {error && (
-            <div className="p-4 bg-red-50 text-red-700 text-sm rounded-lg border border-red-100 flex items-start animate-in fade-in">
-               <AlertTriangle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-               <span>{error}</span>
-            </div>
-        )}
-
-        <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-slate-200"></div>
-            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase font-bold">O manual</span>
-            <div className="flex-grow border-t border-slate-200"></div>
-        </div>
-
-        <form onSubmit={handleManualSubmit} className="space-y-3">
-            <div>
-                <label htmlFor="machineId" className="sr-only">ID de Máquina</label>
-                <input
-                type="text"
-                id="machineId"
-                value={machineId}
-                onChange={(e) => setMachineId(e.target.value)}
-                className="block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-mono tracking-wider text-center uppercase"
-                placeholder="ID MANUAL (Ej: M-001)"
-                disabled={loading}
-                />
-            </div>
-
-            <button
-                type="submit"
-                disabled={!machineId || loading}
-                className="w-full flex justify-center py-3 px-4 border border-slate-300 rounded-lg shadow-sm text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 transition"
-            >
-                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
-                    <>
-                        Continuar
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                )}
-            </button>
-        </form>
-        
-        {/* Hidden div for file scan API requirement */}
-        <div id="reader" className={scanning ? '' : 'hidden'}></div>
+              <div className="col-span-2">
+                <form onSubmit={handleManualSubmit} className="relative">
+                    <input
+                        type="text"
+                        value={machineId}
+                        onChange={(e) => setMachineId(e.target.value)}
+                        className="w-full pl-4 pr-12 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-center uppercase placeholder:text-slate-300"
+                        placeholder="ID MANUAL"
+                    />
+                    <button 
+                        type="submit"
+                        disabled={!machineId}
+                        className="absolute right-1 top-1 bottom-1 bg-blue-600 text-white px-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition"
+                    >
+                        <ArrowRight className="h-5 w-5" />
+                    </button>
+                </form>
+              </div>
+          </div>
       </div>
     </div>
   );

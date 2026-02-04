@@ -48,18 +48,37 @@ const AppRoutes: React.FC = () => {
         <Route path="/login/:roleType" element={<Login />} />
 
         {/* APP 1: Technician */}
-        <Route path="/tech/scan" element={<ProtectedRoute roles={[Role.TECHNICIAN]}><TechScan /></ProtectedRoute>} />
-        <Route path="/tech/start/:machineId" element={<ProtectedRoute roles={[Role.TECHNICIAN]}><TechStartVisit /></ProtectedRoute>} />
-        <Route path="/tech/form/:machineId" element={<ProtectedRoute roles={[Role.TECHNICIAN]}><TechForm /></ProtectedRoute>} />
+        <Route path="/tech/scan" element={
+            <ProtectedRoute roles={[Role.TECHNICIAN]}><TechScan /></ProtectedRoute>
+        } />
+        <Route path="/tech/start/:machineId" element={
+            <ProtectedRoute roles={[Role.TECHNICIAN]}><TechStartVisit /></ProtectedRoute>
+        } />
+        <Route path="/tech/form/:machineId" element={
+            <ProtectedRoute roles={[Role.TECHNICIAN]}><TechForm /></ProtectedRoute>
+        } />
         
         {/* APP 2: Owner */}
-        <Route path="/owner/dashboard" element={<ProtectedRoute roles={[Role.OWNER]}><OwnerDashboard /></ProtectedRoute>} />
-        <Route path="/owner/machines" element={<ProtectedRoute roles={[Role.OWNER]}><OwnerMachines /></ProtectedRoute>} />
-        <Route path="/owner/users" element={<ProtectedRoute roles={[Role.OWNER]}><OwnerUsers /></ProtectedRoute>} />
-        <Route path="/owner/review/:reportId" element={<ProtectedRoute roles={[Role.OWNER]}><AdminReview /></ProtectedRoute>} />
+        <Route path="/owner/dashboard" element={
+            <ProtectedRoute roles={[Role.OWNER]}><OwnerDashboard /></ProtectedRoute>
+        } />
+        <Route path="/owner/machines" element={
+            <ProtectedRoute roles={[Role.OWNER]}><OwnerMachines /></ProtectedRoute>
+        } />
+        <Route path="/owner/users" element={
+            <ProtectedRoute roles={[Role.OWNER]}><OwnerUsers /></ProtectedRoute>
+        } />
+        <Route path="/owner/review/:reportId" element={
+            <ProtectedRoute roles={[Role.OWNER]}><AdminReview /></ProtectedRoute>
+        } />
 
         {/* APP 3: Condo Admin */}
-        <Route path="/condo/dashboard" element={<ProtectedRoute roles={[Role.CONDO_ADMIN]}><CondoDashboard /></ProtectedRoute>} />
+        <Route path="/condo/dashboard" element={
+            <ProtectedRoute roles={[Role.CONDO_ADMIN]}><CondoDashboard /></ProtectedRoute>
+        } />
+
+        {/* Catch all redirect */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   );

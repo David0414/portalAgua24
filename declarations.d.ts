@@ -45,14 +45,16 @@ declare module 'html5-qrcode' {
 }
 
 declare module 'react-qr-code' {
-    interface QRCodeProps {
+    import React from 'react';
+    export interface QRCodeProps {
         value: string;
         size?: number;
         bgColor?: string;
         fgColor?: string;
         level?: 'L' | 'M' | 'Q' | 'H';
-        style?: import('react').CSSProperties;
+        style?: React.CSSProperties;
+        viewBox?: string;
     }
-    const QRCodeComponent: import('react').FC<QRCodeProps>;
-    export default QRCodeComponent;
+    const QRCode: React.FC<QRCodeProps>;
+    export default QRCode;
 }

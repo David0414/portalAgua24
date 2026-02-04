@@ -31,21 +31,22 @@ export const api = {
         try {
             let email = identifier.trim();
             if (!email.includes('@')) {
-                // Buscamos por el nombre de usuario
+                // Buscamos por el nombre de usuario (asumimos que lo guardamos en el campo email para simplificar en este modo bypass)
             }
 
             console.log("🔍 Buscando usuario en tabla app_users:", email);
 
+            // Usamos una consulta directa a la tabla. Supabase actúa solo como DB.
             const { data, error } = await supabase
                 .from('app_users')
                 .select('*')
-                .or(`email.eq.${email},email.eq.${email}@agua24.app`) 
-                .eq('password', password.trim()) 
+                .or(`email.eq.${email},email.eq.${email}@agua24.app`) // Busca exacto o con el sufijo
+                .eq('password', password.trim()) // Compara contraseña directa
                 .single();
 
             if (error) {
                 console.error("Error DB Login:", error);
-                if (error.code === 'PGRST116') { 
+                if (error.code === 'PGRST116') { // Código de "0 resultados"
                      alert("Usuario o contraseña incorrectos.");
                 } else {
                      alert(`Error de conexión: ${error.message}`);
@@ -54,6 +55,7 @@ export const api = {
             }
 
             if (data) {
+                // Mapeamos el usuario de la DB al tipo User
                 return {
                     id: data.id,
                     email: data.email,
@@ -61,7 +63,7 @@ export const api = {
                     role: data.role as Role,
                     phone: data.phone,
                     assignedMachineId: data.assignedMachineId,
-                    username: data.email.includes('@agua24.app') ? data.email.split('@')[0] : undefined
+                    username: data.email.includes('@') ? undefined : data.email
                 };
             }
             return null;
@@ -73,6 +75,7 @@ export const api = {
         }
 
     } else {
+        // Offline Mode
         await new Promise(r => setTimeout(r, 600)); 
         const db = getDb();
         const user = db.users.find((u: any) => 
@@ -88,25 +91,33 @@ export const api = {
   getUsers: async (): Promise<User[]> => {
     if (USE_SUPABASE) {
         const { data } = await supabase.from('app_users').select('*');
-        return data as User[] || [];
+        if (!data) return [];
+        
+        // MAPEO IMPORTANTE: Si es CONDO_ADMIN, el 'email' de la DB es en realidad el 'username'
+        return data.map((u: any) => ({
+            ...u,
+            username: (u.role === 'CONDO_ADMIN' || !u.email.includes('@')) ? u.email : undefined
+        })) as User[];
     } else {
         const db = getDb();
         return db.users.map(({ password, ...u }: any) => u);
     }
   },
 
+  // Crear usuario insertando directamente en la tabla (Sin Auth Trigger)
   createUser: async (user: Omit<User, 'id'> & { password: string, assignedMachineId?: string }): Promise<User> => {
     if (USE_SUPABASE) {
         let finalEmail = user.email;
+        // Si no es email, lo convertimos a formato email interno o usamos el username
         if (!finalEmail && user.username) {
-            finalEmail = user.username; 
+            finalEmail = user.username; // Lo guardamos tal cual o con sufijo
         }
         
         if (!finalEmail) throw new Error("Se requiere email o usuario");
 
         const newUserPayload = {
             email: finalEmail,
-            password: user.password.trim(),
+            password: user.password.trim(), // Guardamos password directo
             name: user.name,
             role: user.role,
             phone: user.phone || null,
@@ -137,15 +148,37 @@ export const api = {
   },
 
   createProfileOnly: async (user: Omit<User, 'id'> & { uid: string, assignedMachineId?: string }): Promise<User> => {
+      // Este método ya no es necesario en el modo "Solo DB" porque createUser hace todo
+      // Pero lo mantenemos por compatibilidad
       throw new Error("En modo Base de Datos Directa, usa 'Crear Usuario (Auto)'");
   },
 
   updateUser: async (id: string, updates: Partial<User & { password?: string }>): Promise<User> => {
     if (USE_SUPABASE) {
-        const { ...fieldsToUpdate } = updates;
+        const fieldsToUpdate: any = { ...updates };
+        
+        // CORRECCIÓN PARA EVITAR ERROR 400:
+        // La tabla 'app_users' no tiene columna 'username', usa 'email' como identificador único.
+        // Si la app manda 'username', lo movemos a 'email'.
+        if (fieldsToUpdate.username) {
+             fieldsToUpdate.email = fieldsToUpdate.username;
+        }
+        
+        // Eliminamos 'username' del payload para que Supabase no tire error de "Column not found"
+        delete fieldsToUpdate.username;
+
+        // Limpieza de undefined
+        if (fieldsToUpdate.email === undefined) delete fieldsToUpdate.email;
+
         const { data, error } = await supabase.from('app_users').update(fieldsToUpdate).eq('id', id).select().single();
         if(error) throw error;
-        return data as User;
+        
+        // Mapeamos de vuelta para la UI
+        const updatedUser = data as any;
+        return {
+             ...updatedUser,
+             username: updatedUser.role === 'CONDO_ADMIN' ? updatedUser.email : undefined
+        } as User;
     } else {
         const db = getDb();
         const index = db.users.findIndex((u: User) => u.id === id);
@@ -159,6 +192,7 @@ export const api = {
 
   deleteUser: async (id: string): Promise<void> => {
     if (USE_SUPABASE) {
+        // Borrado directo SQL simple
         const { error } = await supabase.from('app_users').delete().eq('id', id);
         if (error) throw error;
     } else {
@@ -168,7 +202,7 @@ export const api = {
     }
   },
 
-  // --- Machine Methods ---
+  // --- Machine Methods (Sin cambios mayores) ---
 
   getMachines: async (): Promise<Machine[]> => {
     if (USE_SUPABASE) {
@@ -246,8 +280,6 @@ export const api = {
 
   // --- Report Methods (CORREGIDO PARA TOTALES) ---
 
-  // Se eliminó el límite por defecto para asegurar que los cálculos de totales (dinero) sean correctos.
-  // La paginación visual se manejará en el frontend.
   getAllReports: async (): Promise<Report[]> => {
     if (USE_SUPABASE) {
         const { data, error } = await supabase
@@ -266,7 +298,6 @@ export const api = {
     }
   },
 
-  // Método específico para el Dashboard de Condominio (Optimizado)
   getReportsByMachine: async (machineId: string, limit: number = 100): Promise<Report[]> => {
      if (USE_SUPABASE) {
          const { data, error } = await supabase

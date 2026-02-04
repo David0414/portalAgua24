@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/db';
-import { ChecklistValue, ReportStatus, Report, Role } from '../types';
+import { ChecklistValue, Report, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
 import { PhotoUpload } from '../components/PhotoUpload';
 import { sendWhatsAppNotification, generateAdminReviewLink } from '../services/whatsapp';
@@ -10,7 +10,8 @@ import { useAuth } from '../contexts/AuthContext';
 
 export const TechForm: React.FC = () => {
   const { machineId } = useParams<{ machineId: string }>();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
   const reportIdToEdit = searchParams.get('reportId');
   const navigate = useNavigate();
   const { user } = useAuth();

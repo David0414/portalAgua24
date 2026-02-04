@@ -52,7 +52,8 @@ export const OwnerUsers: React.FC = () => {
   const openEditForm = (u: User) => {
     setEditingId(u.id);
     setNewName(u.name);
-    setNewIdentifier(u.role === Role.CONDO_ADMIN ? (u.username || '') : (u.email || ''));
+    // CORRECCIÓN: Si es CONDO_ADMIN, preferir username, si no existe, usar email (ya que la DB unificada usa email para todo)
+    setNewIdentifier(u.role === Role.CONDO_ADMIN ? (u.username || u.email || '') : (u.email || ''));
     setNewPhone(u.phone || '');
     setNewPass(''); 
     setNewRole(u.role);

@@ -3,11 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip } from 'lucide-react';
-import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, ZoomIn } from 'lucide-react';
+import { sendWhatsAppNotification, generateTechEditLink, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { format, differenceInDays } from 'date-fns';
 
 export const AdminReview: React.FC = () => {
   const { reportId } = useParams<{ reportId: string }>();
@@ -21,6 +20,9 @@ export const AdminReview: React.FC = () => {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  
+  // Image Preview State
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   // Success State
   const [outcome, setOutcome] = useState<{
@@ -51,12 +53,17 @@ export const AdminReview: React.FC = () => {
     loadData();
   }, [reportId]);
 
+  const isImageExpired = (reportDate: string) => {
+    return differenceInDays(new Date(), new Date(reportDate)) > 60;
+  };
+
   if (!report) return <div className="p-8 text-center flex justify-center"><Loader2 className="animate-spin text-brand-600" /></div>;
 
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
 
   const goBackToDashboard = () => {
-      window.location.href = `${PRODUCTION_URL}/#/owner/dashboard`;
+      // Usamos navigate para navegación interna, mucho más rápido que reload
+      navigate('/owner/dashboard');
   };
 
   // PDF DOWNLOAD HANDLER
@@ -73,8 +80,6 @@ export const AdminReview: React.FC = () => {
       await api.reviewReport(report.id, ReportStatus.APPROVED);
       
       // 2. Auto-Download PDF for the Owner
-      // IMPORTANTE: Creamos un objeto actualizado manualmente porque el state 'report' 
-      // todavía tiene el status viejo (PENDING) en este momento del ciclo.
       if (machineInfo) {
           const approvedReport = { ...report, status: ReportStatus.APPROVED };
           generateReportPDF(approvedReport, machineInfo.location);
@@ -141,10 +146,7 @@ export const AdminReview: React.FC = () => {
 
   const sendCondoWhatsApp = () => {
     if (!report || !machineInfo || !condoContact?.phone) return;
-    
-    // Message specifically mentioning the PDF attachment
     const msg = `✅ *Reporte Listo*\n\nAdjunto el PDF con los detalles del mantenimiento en *${machineInfo.location}*.\n\nTambién disponible en tu portal: ${PRODUCTION_URL}/#/login/condo`;
-
     sendWhatsAppNotification(condoContact.phone, msg);
   };
 
@@ -195,7 +197,7 @@ export const AdminReview: React.FC = () => {
                     <ExternalLink className="h-4 w-4 text-slate-400" />
                 </button>
                 
-                {/* Step 2: Condo (With instructions for PDF) */}
+                {/* Step 2: Condo */}
                 {condoContact ? (
                     <div className="border border-teal-200 rounded-xl overflow-hidden">
                         <div className="bg-teal-50 p-3 text-left border-b border-teal-100">
@@ -208,7 +210,8 @@ export const AdminReview: React.FC = () => {
                         >
                             <div className="flex items-center">
                                 <div className="bg-teal-200 p-2 rounded-full mr-3">
-                                    <Paperclip className="h-5 w-5 text-teal-800" />
+                                    {/* Paperclip icon replaced with text/standard icon if missing import */}
+                                    <FileText className="h-5 w-5 text-teal-800" />
                                 </div>
                                 <div className="text-left">
                                     <span className="block font-bold text-teal-900">2. Abrir WhatsApp Cliente</span>
@@ -257,7 +260,8 @@ export const AdminReview: React.FC = () => {
              onClick={handleDownloadPDF}
              className="flex items-center space-x-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition shadow-sm"
           >
-             <Download className="h-4 w-4" />
+             {/* Download icon replaced/implied */}
+             <FileText className="h-4 w-4" />
              <span>Descargar PDF</span>
           </button>
       </div>
@@ -334,17 +338,26 @@ export const AdminReview: React.FC = () => {
                                     {data?.comment || '-'}
                                 </td>
                                 <td className="p-4 text-center">
-                                    {data?.photoUrl ? (
-                                        <div className="relative group inline-block">
-                                            <img 
-                                            src={data.photoUrl} 
-                                            alt="Evidencia" 
-                                            className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:scale-150 transition z-10 relative bg-white"
-                                            onClick={() => window.open(data.photoUrl, '_blank')}
-                                            />
-                                        </div>
+                                    {isImageExpired(report.createdAt) ? (
+                                        <span className="text-[10px] text-slate-300 font-bold bg-slate-50 px-2 py-1 rounded border border-slate-100 cursor-help" title="Eliminado automáticamente por antigüedad">
+                                            EXPIRADO
+                                        </span>
                                     ) : (
-                                        <span className="text-xs text-red-300 italic font-bold">Sin foto</span>
+                                        data?.photoUrl ? (
+                                            <div className="relative group inline-block">
+                                                <img 
+                                                    src={data.photoUrl} 
+                                                    alt="Evidencia" 
+                                                    className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:opacity-80 transition z-10 relative bg-white"
+                                                    onClick={() => setPreviewImage(data.photoUrl || null)}
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-20 transition pointer-events-none rounded">
+                                                    <ZoomIn className="text-white opacity-0 group-hover:opacity-100 h-3 w-3" />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-red-300 italic font-bold">Sin foto</span>
+                                        )
                                     )}
                                 </td>
                             </tr>
@@ -445,6 +458,30 @@ export const AdminReview: React.FC = () => {
                 </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* FULL SCREEN IMAGE PREVIEW MODAL */}
+      {previewImage && (
+        <div 
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setPreviewImage(null)}
+        >
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+                <img 
+                    src={previewImage} 
+                    alt="Evidencia Ampliada" 
+                    className="max-w-full max-h-full object-contain rounded shadow-2xl animate-in zoom-in-50 duration-300" 
+                    onClick={(e) => e.stopPropagation()} 
+                />
+                
+                <button 
+                    onClick={() => setPreviewImage(null)}
+                    className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md transition"
+                >
+                    <X className="h-6 w-6" />
+                </button>
+            </div>
         </div>
       )}
     </div>
