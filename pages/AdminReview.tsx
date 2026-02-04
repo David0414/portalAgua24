@@ -3,10 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, ZoomIn } from 'lucide-react';
-import { sendWhatsAppNotification, generateTechEditLink, PRODUCTION_URL } from '../services/whatsapp';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn } from 'lucide-react';
+import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format, differenceInDays } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export const AdminReview: React.FC = () => {
   const { reportId } = useParams<{ reportId: string }>();
@@ -210,8 +211,7 @@ export const AdminReview: React.FC = () => {
                         >
                             <div className="flex items-center">
                                 <div className="bg-teal-200 p-2 rounded-full mr-3">
-                                    {/* Paperclip icon replaced with text/standard icon if missing import */}
-                                    <FileText className="h-5 w-5 text-teal-800" />
+                                    <Paperclip className="h-5 w-5 text-teal-800" />
                                 </div>
                                 <div className="text-left">
                                     <span className="block font-bold text-teal-900">2. Abrir WhatsApp Cliente</span>
@@ -260,8 +260,7 @@ export const AdminReview: React.FC = () => {
              onClick={handleDownloadPDF}
              className="flex items-center space-x-2 bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-900 transition shadow-sm"
           >
-             {/* Download icon replaced/implied */}
-             <FileText className="h-4 w-4" />
+             <Download className="h-4 w-4" />
              <span>Descargar PDF</span>
           </button>
       </div>

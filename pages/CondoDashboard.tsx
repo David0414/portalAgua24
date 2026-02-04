@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/db';
 import { Report, ReportStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon } from 'lucide-react';
+import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts';
@@ -17,8 +17,10 @@ export const CondoDashboard: React.FC = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [machineInfo, setMachineInfo] = useState<{id: string, location: string} | null>(null);
   
-  // State for Modal
+  // State for Report Details Modal
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  // State for Image Preview Modal
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -84,7 +86,7 @@ export const CondoDashboard: React.FC = () => {
   };
 
   const isImageExpired = (reportDate: string) => {
-      // Images must be deleted (or hidden) after 60 days
+      // Images are deleted from DB after 60 days automatically
       return differenceInDays(new Date(), new Date(reportDate)) > 60;
   };
 
@@ -192,21 +194,27 @@ export const CondoDashboard: React.FC = () => {
                                 )}
                             </td>
                             <td className="px-6 py-4 text-center">
-                                {row.photoUrl ? (
-                                    isImageExpired(latestReport?.createdAt || '') ? (
-                                        <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title="Eliminado por antigüedad (>60 días)">
-                                            EXPIRADO
-                                        </span>
-                                    ) : (
-                                        <button 
-                                            onClick={() => window.open(row.photoUrl, '_blank')}
-                                            className="text-teal-600 hover:text-teal-800 transition p-1 bg-teal-50 rounded-lg border border-teal-100"
-                                        >
-                                            <ImageIcon className="h-4 w-4" />
-                                        </button>
-                                    )
+                                {/* LOGIC UPDATE: Check expiration FIRST. If expired, show Badge regardless of if photo exists (it might have been auto-deleted) */}
+                                {isImageExpired(latestReport?.createdAt || '') ? (
+                                    <span className="text-[10px] text-slate-300 font-bold bg-slate-50 px-2 py-1 rounded border border-slate-100 cursor-help" title="Eliminado automáticamente por política de 60 días">
+                                        EXPIRADO
+                                    </span>
                                 ) : (
-                                    <span className="text-slate-300">-</span>
+                                    row.photoUrl ? (
+                                        <div className="relative group inline-block">
+                                            <img 
+                                                src={row.photoUrl} 
+                                                alt="Evidencia"
+                                                className="h-10 w-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition shadow-sm"
+                                                onClick={() => setPreviewImage(row.photoUrl || null)}
+                                            />
+                                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow border border-slate-100 pointer-events-none">
+                                                <ZoomIn className="h-3 w-3 text-teal-600" />
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <span className="text-slate-300 text-xs">-</span>
+                                    )
                                 )}
                             </td>
                          </tr>
@@ -296,23 +304,26 @@ export const CondoDashboard: React.FC = () => {
                                    </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                    {row.photoUrl ? (
-                                        isImageExpired(selectedReport.createdAt) ? (
-                                            <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200">
-                                                EXPIRADO
-                                            </span>
-                                        ) : (
+                                    {isImageExpired(selectedReport.createdAt) ? (
+                                        <span className="text-[10px] text-slate-300 font-bold bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                            EXPIRADO
+                                        </span>
+                                    ) : (
+                                        row.photoUrl ? (
                                             <div className="relative group inline-block">
                                                 <img 
                                                     src={row.photoUrl} 
                                                     alt="Evidencia"
-                                                    className="h-12 w-12 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition"
-                                                    onClick={() => window.open(row.photoUrl, '_blank')}
+                                                    className="h-12 w-12 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80 transition"
+                                                    onClick={() => setPreviewImage(row.photoUrl || null)}
                                                 />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-20 transition pointer-events-none rounded-lg">
+                                                    <ZoomIn className="text-white opacity-0 group-hover:opacity-100 h-4 w-4" />
+                                                </div>
                                             </div>
+                                        ) : (
+                                            <span className="text-slate-300 text-xs">-</span>
                                         )
-                                    ) : (
-                                        <span className="text-slate-300 text-xs">-</span>
                                     )}
                                 </td>
                              </tr>
@@ -335,6 +346,31 @@ export const CondoDashboard: React.FC = () => {
              </div>
         </div>
       )}
+
+      {/* FULL SCREEN IMAGE PREVIEW MODAL */}
+      {previewImage && (
+        <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setPreviewImage(null)}
+        >
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+                <img 
+                    src={previewImage} 
+                    alt="Evidencia Ampliada" 
+                    className="max-w-full max-h-full object-contain rounded shadow-2xl animate-in zoom-in-50 duration-300" 
+                    onClick={(e) => e.stopPropagation()} 
+                />
+                
+                <button 
+                    onClick={() => setPreviewImage(null)}
+                    className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md transition"
+                >
+                    <X className="h-6 w-6" />
+                </button>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 };
