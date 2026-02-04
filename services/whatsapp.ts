@@ -18,7 +18,7 @@ export const generateTechEditLink = (reportId: string, machineId: string) => {
 };
 
 export const generateStartVisitMessage = (machineLocation: string, techName: string) => {
-  return `👋 Hola, soy el técnico ${techName}.\n\n📍 Estoy llegando a *${machineLocation}* para realizar el mantenimiento programado del sistema de purificación.\n\nLe notificaré cuando haya finalizado.`;
+  return `👋 Hola, soy el técnico ${techName} de AGUA 24.\n\n📍 Estoy llegando a *${machineLocation}* para realizar el mantenimiento programado del sistema de purificación.\n\nEn breve se le enviará el repote correspondiente..`;
 };
 
 export const generateCondoReportMessage = (machineId: string, location: string, date: string, tds: string, ph: string) => {
