@@ -194,24 +194,28 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
 
           // Fila 1: pH y TDS
           // Escala pH: 14 (Total)
-          drawGauge("pH (Acidez)", ph, "pH", 15, currentY + 5, 6.5, 8.5, 14);
+          drawGauge("pH (Potencial de Hidrógeno)", ph, "pH", 15, currentY + 5, 6.5, 8.5, 14);
           // Escala TDS: 400 (Dando margen al maximo de 300)
-          drawGauge("TDS (Sólidos)", tds, "ppm", 110, currentY + 5, 50, 300, 400); 
+          drawGauge("TDS (Sólidos Disueltos Totales)", tds, "ppm", 110, currentY + 5, 50, 300, 400); 
           
           // Fila 2: Cloro y Dureza
           // Escala Cloro: 3
-          drawGauge("Cloro Libre", cl, "mg/L", 15, currentY + 25, 0.2, 1.5, 3);
+          drawGauge("Cloro (Cloro Libre)", cl, "mg/L", 15, currentY + 25, 0.2, 1.5, 3);
           // Escala Dureza: 300
-          drawGauge("Dureza", hard, "mg/L", 110, currentY + 25, undefined, 200, 300);
+          drawGauge("Dureza (Dureza Total)", hard, "mg/L", 110, currentY + 25, undefined, 200, 300);
 
           currentY += 45; // Espacio después de las gráficas
       }
 
       // --- 3. TABLA DE DATOS ---
       
-      const visibleChecklist = isPublicVersion 
-          ? checklist.filter(item => !item.private) 
-          : checklist;
+      // FILTRO ESTRICTO:
+      // Excluir SOLAMENTE Ventas Totales (w13) y Resetear Ventas (w_reset_sales)
+      // Mantener Acomodo de Hopper (w14) y Cambio Ingresado (w_exchange) aunque sean 'private'.
+      
+      const excludedIds = ['w13', 'w_reset_sales']; 
+      
+      const visibleChecklist = checklist.filter(item => !excludedIds.includes(item.id));
 
       const tableBody = visibleChecklist.map((item) => {
         const dataItem = report.data.find(d => d.itemId === item.id);

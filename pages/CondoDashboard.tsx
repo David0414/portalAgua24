@@ -387,24 +387,24 @@ export const CondoDashboard: React.FC = () => {
       {/* 4 CHART GRID (Dashboard Visualizations) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <QualityChart 
-            title="Pureza (TDS)" icon={<Activity className="mr-2 text-teal-500 h-4 w-4" />}
+            title="Sólidos Disueltos Totales (TDS)" icon={<Activity className="mr-2 text-teal-500 h-4 w-4" />}
             data={chartData} dataKey="tds" color="#d946ef" unit="ppm" min={tdsDef?.min} max={tdsDef?.max} isLatest={timeRange === 'latest'}
-            onExpand={() => setExpandedChart({ title: "Pureza (TDS)", icon: <Activity className="text-white h-5 w-5"/>, dataKey: "tds", color: "#d946ef", unit: "ppm", min: tdsDef?.min, max: tdsDef?.max })}
+            onExpand={() => setExpandedChart({ title: "TDS (Sólidos Disueltos Totales)", icon: <Activity className="text-white h-5 w-5"/>, dataKey: "tds", color: "#d946ef", unit: "ppm", min: tdsDef?.min, max: tdsDef?.max })}
         />
         <QualityChart 
             title="Nivel de pH" icon={<TestTube className="mr-2 text-indigo-500 h-4 w-4" />}
             data={chartData} dataKey="ph" color="#6366f1" unit="pH" min={phDef?.min} max={phDef?.max} isLatest={timeRange === 'latest'}
-            onExpand={() => setExpandedChart({ title: "Nivel de pH", icon: <TestTube className="text-white h-5 w-5"/>, dataKey: "ph", color: "#6366f1", unit: "pH", min: phDef?.min, max: phDef?.max })}
+            onExpand={() => setExpandedChart({ title: "pH (Potencial de Hidrógeno)", icon: <TestTube className="text-white h-5 w-5"/>, dataKey: "ph", color: "#6366f1", unit: "pH", min: phDef?.min, max: phDef?.max })}
         />
         <QualityChart 
             title="Cloro Libre" icon={<Droplets className="mr-2 text-cyan-500 h-4 w-4" />}
             data={chartData} dataKey="cl" color="#06b6d4" unit="mg/L" min={clDef?.min} max={clDef?.max} isLatest={timeRange === 'latest'}
-            onExpand={() => setExpandedChart({ title: "Cloro Libre", icon: <Droplets className="text-white h-5 w-5"/>, dataKey: "cl", color: "#06b6d4", unit: "mg/L", min: clDef?.min, max: clDef?.max })}
+            onExpand={() => setExpandedChart({ title: "Cloro (Cloro Libre)", icon: <Droplets className="text-white h-5 w-5"/>, dataKey: "cl", color: "#06b6d4", unit: "mg/L", min: clDef?.min, max: clDef?.max })}
         />
         <QualityChart 
             title="Dureza Total" icon={<Shield className="mr-2 text-purple-500 h-4 w-4" />}
             data={chartData} dataKey="hard" color="#8b5cf6" unit="mg/L" min={0} max={hardDef?.max} isLatest={timeRange === 'latest'}
-            onExpand={() => setExpandedChart({ title: "Dureza Total", icon: <Shield className="text-white h-5 w-5"/>, dataKey: "hard", color: "#8b5cf6", unit: "mg/L", min: 0, max: hardDef?.max })}
+            onExpand={() => setExpandedChart({ title: "Dureza (Dureza Total)", icon: <Shield className="text-white h-5 w-5"/>, dataKey: "hard", color: "#8b5cf6", unit: "mg/L", min: 0, max: hardDef?.max })}
         />
       </div>
 

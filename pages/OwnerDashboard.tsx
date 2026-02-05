@@ -154,9 +154,9 @@ export const OwnerDashboard: React.FC = () => {
   // Helper definitions for Charts (Added Sales)
   const chartConfig = [
       { key: 'sales', name: 'Ventas ($)', color: '#10b981', icon: <Wallet className="w-4 h-4 mr-1 text-emerald-500" />, isCurrency: true },
-      { key: 'tds', name: 'TDS (ppm)', color: '#d946ef', icon: <Activity className="w-4 h-4 mr-1 text-fuchsia-500" />, min: 50, max: 300 },
-      { key: 'ph', name: 'pH', color: '#6366f1', icon: <TestTube className="w-4 h-4 mr-1 text-indigo-500" />, min: 6.5, max: 8.5 },
-      { key: 'cl', name: 'Cloro (mg/L)', color: '#06b6d4', icon: <Droplets className="w-4 h-4 mr-1 text-cyan-500" />, min: 0.2, max: 1.5 },
+      { key: 'tds', name: 'TDS (Sólidos Disueltos Totales)', color: '#d946ef', icon: <Activity className="w-4 h-4 mr-1 text-fuchsia-500" />, min: 50, max: 300 },
+      { key: 'ph', name: 'pH (Potencial de Hidrógeno)', color: '#6366f1', icon: <TestTube className="w-4 h-4 mr-1 text-indigo-500" />, min: 6.5, max: 8.5 },
+      { key: 'cl', name: 'Cloro (Cloro Libre)', color: '#06b6d4', icon: <Droplets className="w-4 h-4 mr-1 text-cyan-500" />, min: 0.2, max: 1.5 },
   ];
 
   if (loading && !refreshing && reports.length === 0) {
