@@ -20,6 +20,8 @@ export const TechScan: React.FC = () => {
   const [myVisits, setMyVisits] = useState<Visit[]>([]);
   // Rejected Reports State
   const [rejectedReports, setRejectedReports] = useState<Report[]>([]);
+  // New state to show loading of data separate from camera
+  const [dataLoading, setDataLoading] = useState(true);
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -29,12 +31,34 @@ export const TechScan: React.FC = () => {
     return new Date(`${dateStr}T00:00:00`);
   };
 
-  // Auto-start scanning on mount for "Arrive & Scan" feel
+  // 1. DATA LOADING EFFECT (Priority 1: Immediate on mount)
   useEffect(() => {
-    if (user) {
-        loadData();
-    }
+    const loadQuickData = async () => {
+        if (!user) return;
+        setDataLoading(true);
+        try {
+            // Fetch rejected reports FIRST using the new fast method
+            if (user.phone) {
+                const rejected = await api.getRejectedReportsByTechnician(user.phone);
+                setRejectedReports(rejected);
+            }
 
+            // Then fetch visits (less critical if delayed slightly)
+            const visits = await api.getVisitsByTechnician(user.id);
+            const upcoming = visits.filter(v => !isPast(parseDate(v.date)) || isToday(parseDate(v.date)));
+            setMyVisits(upcoming);
+        } catch (e) {
+            console.error("Error loading tech data", e);
+        } finally {
+            setDataLoading(false);
+        }
+    };
+
+    loadQuickData();
+  }, [user]);
+
+  // 2. CAMERA EFFECT (Priority 2: Async start)
+  useEffect(() => {
     // Check if we can auto-start
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
     if (isSecure) {
@@ -44,23 +68,7 @@ export const TechScan: React.FC = () => {
     return () => {
       stopScanning();
     };
-  }, [user]);
-
-  const loadData = async () => {
-      if(!user) return;
-      
-      // 1. Fetch Visits (Schedule)
-      const visits = await api.getVisitsByTechnician(user.id);
-      const upcoming = visits.filter(v => !isPast(parseDate(v.date)) || isToday(parseDate(v.date)));
-      setMyVisits(upcoming);
-
-      // 2. Fetch Rejected Reports (Corrections)
-      if (user.phone) {
-          const reports = await api.getReportsByTechnician(user.phone);
-          const rejected = reports.filter(r => r.status === ReportStatus.REJECTED);
-          setRejectedReports(rejected);
-      }
-  };
+  }, []);
 
   const startScanning = async () => {
       setError('');
@@ -73,6 +81,7 @@ export const TechScan: React.FC = () => {
           return;
       }
 
+      // Small delay to allow UI to render first
       setTimeout(async () => {
           try {
               if (!scannerRef.current) {
@@ -104,7 +113,7 @@ export const TechScan: React.FC = () => {
               setScanning(false);
               if (err.name === 'NotAllowedError') setError("Permiso de cámara denegado.");
           }
-      }, 300);
+      }, 500);
   };
 
   const stopScanning = async () => {
@@ -147,8 +156,13 @@ export const TechScan: React.FC = () => {
   return (
     <div className="max-w-md mx-auto space-y-6 pb-20">
       
-      {/* SECTION 0: CORRECCIONES PENDIENTES (NUEVO) */}
-      {rejectedReports.length > 0 && (
+      {/* SECTION 0: CORRECCIONES PENDIENTES (ALTA PRIORIDAD) */}
+      {dataLoading ? (
+          <div className="bg-slate-50 p-4 rounded-xl flex items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-400 mr-2" />
+              <span className="text-slate-500 text-sm">Verificando pendientes...</span>
+          </div>
+      ) : rejectedReports.length > 0 && (
           <section className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden shadow-sm animate-pulse-slow">
               <div className="p-4 bg-red-100/50 border-b border-red-200 flex justify-between items-center">
                   <h3 className="font-bold text-red-800 flex items-center">

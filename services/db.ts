@@ -314,6 +314,24 @@ export const api = {
       }
   },
 
+  // NEW FAST METHOD: Solo trae los rechazados, mucho más rápido que traer todo el historial
+  getRejectedReportsByTechnician: async (technicianId: string): Promise<Report[]> => {
+      if (USE_SUPABASE) {
+          const { data, error } = await supabase
+            .from('reports')
+            .select('*')
+            .eq('technicianId', technicianId)
+            .eq('status', ReportStatus.REJECTED)
+            .order('createdAt', { ascending: false });
+            
+          if (error) return [];
+          return data as unknown as Report[] || [];
+      } else {
+          const reports = getDb().reports.filter((r: Report) => r.technicianId === technicianId && r.status === ReportStatus.REJECTED);
+          return reports;
+      }
+  },
+
   getReportById: async (id: string): Promise<Report | undefined> => {
     if (USE_SUPABASE) {
         const { data } = await supabase.from('reports').select('*').eq('id', id).single();

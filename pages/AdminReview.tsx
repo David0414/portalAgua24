@@ -87,8 +87,13 @@ export const AdminReview: React.FC = () => {
   const handleApprove = async () => {
     setLoadingAction(true);
     try {
+      // CRITICAL LOGIC: 
+      // If report is Weekly or Monthly, enforce visibility = TRUE always.
+      // If report is Special, respect the `showInCondo` toggle state.
+      const finalVisibility = report.type !== 'special' ? true : showInCondo;
+
       // 1. Update Status in DB with Visibility Flag
-      await api.reviewReport(report.id, ReportStatus.APPROVED, undefined, showInCondo);
+      await api.reviewReport(report.id, ReportStatus.APPROVED, undefined, finalVisibility);
       
       // 2. Auto-Download PDF for the Owner (Always download for owner)
       if (machineInfo) {
@@ -174,6 +179,8 @@ export const AdminReview: React.FC = () => {
 
   // --- SUCCESS VIEW (DOBLE NOTIFICACIÓN) ---
   if (outcome) {
+    const isActuallyVisible = report.type !== 'special' ? true : showInCondo;
+
     return (
       <div className="max-w-xl mx-auto mt-10 p-8 bg-white rounded-2xl shadow-xl text-center border-t-8 border-indigo-500 animate-in fade-in zoom-in duration-300">
         <div className="flex justify-center mb-6">
@@ -216,7 +223,7 @@ export const AdminReview: React.FC = () => {
                 </button>
                 
                 {/* Step 2: Condo - ONLY IF VISIBLE */}
-                {showInCondo ? (
+                {isActuallyVisible ? (
                     condoContact ? (
                         <div className="border border-teal-200 rounded-xl overflow-hidden">
                             <div className="bg-teal-50 p-3 text-left border-b border-teal-100">
