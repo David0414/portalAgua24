@@ -7,7 +7,7 @@ import { format, differenceInDays, subMonths, isAfter, parseISO, isPast, isToday
 import { es } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar, Brush } from 'recharts';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { generateReportPDF, generateMonthlyBundlePDF } from '../services/pdfGenerator';
+import { generateReportPDF } from '../services/pdfGenerator';
 
 type TimeRange = 'latest' | '1m' | '3m' | '6m';
 
@@ -245,26 +245,13 @@ export const CondoDashboard: React.FC = () => {
       });
   }, [history, timeRange]);
 
+  // --- PDF DOWNLOAD HANDLER (SINGLE FILE ALWAYS) ---
   const handleDownloadReport = (e: React.MouseEvent, report: Report) => {
       e.stopPropagation();
       if (!machineInfo) return;
-
-      if (report.type === 'monthly') {
-          // BUNDLE LOGIC: Find weekly reports within that month
-          const monthDate = new Date(report.createdAt);
-          const start = startOfMonth(monthDate);
-          const end = endOfMonth(monthDate);
-
-          const weeklyReports = history.filter(r => 
-             r.type === 'weekly' &&
-             r.status === ReportStatus.APPROVED &&
-             isWithinInterval(new Date(r.createdAt), { start, end })
-          );
-
-          generateMonthlyBundlePDF(report, weeklyReports, machineInfo.location);
-      } else {
-          generateReportPDF(report, machineInfo.location, true);
-      }
+      
+      // Generar PDF individual (Sin Bundle)
+      generateReportPDF(report, machineInfo.location, true);
   };
 
   const isImageExpired = (reportDate: string) => {
@@ -561,7 +548,7 @@ export const CondoDashboard: React.FC = () => {
                             >
                                 <Eye className="h-5 w-5" />
                             </button>
-                            {/* DOWNLOAD BUTTON UPDATED WITH BUNDLE LOGIC */}
+                            {/* DOWNLOAD BUTTON (SINGLE PDF ALWAYS) */}
                             <button 
                                 onClick={(e) => handleDownloadReport(e, rep)}
                                 className={`transition p-2 rounded-full ${
@@ -569,9 +556,9 @@ export const CondoDashboard: React.FC = () => {
                                     ? 'text-teal-600 hover:bg-teal-50 hover:text-teal-800' 
                                     : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
                                 }`}
-                                title={rep.type === 'monthly' ? "Descargar Reporte Mensual + Semanales" : "Descargar PDF"}
+                                title="Descargar PDF"
                             >
-                                {rep.type === 'monthly' ? <FileStack className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+                                <Download className="h-5 w-5" />
                             </button>
                         </div>
                     </div>

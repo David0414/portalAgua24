@@ -7,7 +7,7 @@ import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, Trend
 import { format, startOfWeek, endOfWeek, isWithinInterval, subWeeks, subMonths, getWeek, isAfter, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PRODUCTION_URL } from '../services/whatsapp';
-import { generateReportPDF, generateMonthlyBundlePDF } from '../services/pdfGenerator';
+import { generateReportPDF } from '../services/pdfGenerator';
 
 type TimeRange = 'latest' | '1m' | '3m' | '6m';
 
@@ -166,7 +166,7 @@ export const OwnerDashboard: React.FC = () => {
       { key: 'cl', name: 'Cloro (Cloro Libre)', color: '#06b6d4', icon: <Droplets className="w-4 h-4 mr-1 text-cyan-500" />, min: 0.2, max: 1.5 },
   ];
 
-  // --- PDF DOWNLOAD HANDLER WITH BUNDLE LOGIC ---
+  // --- PDF DOWNLOAD HANDLER (SINGLE FILE ALWAYS) ---
   const handleDownloadReport = (e: React.MouseEvent, report: Report) => {
       e.preventDefault();
       e.stopPropagation();
@@ -174,25 +174,8 @@ export const OwnerDashboard: React.FC = () => {
       const machine = machines.find(m => m.id === report.machineId);
       const locName = machine ? machine.location : report.machineId;
 
-      if (report.type === 'monthly') {
-          // BUNDLE LOGIC: Find weekly reports within that month
-          const monthDate = new Date(report.createdAt);
-          const start = startOfMonth(monthDate);
-          const end = endOfMonth(monthDate);
-
-          const weeklyReports = reports.filter(r => 
-             r.machineId === report.machineId &&
-             r.type === 'weekly' &&
-             r.status === ReportStatus.APPROVED &&
-             isWithinInterval(new Date(r.createdAt), { start, end })
-          );
-
-          generateMonthlyBundlePDF(report, weeklyReports, locName);
-
-      } else {
-          // Standard Single PDF
-          generateReportPDF(report, locName, false);
-      }
+      // Generar PDF individual (Sin Bundle)
+      generateReportPDF(report, locName, false);
   };
 
   if (loading && !refreshing && reports.length === 0) {
@@ -511,7 +494,7 @@ export const OwnerDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex gap-2">
-                        {/* PDF DOWNLOAD BUTTON (Distinctive for Monthly) */}
+                        {/* PDF DOWNLOAD BUTTON (SINGLE PDF ALWAYS) */}
                         <button 
                             onClick={(e) => handleDownloadReport(e, report)}
                             className={`p-2 rounded border transition ${
@@ -519,9 +502,9 @@ export const OwnerDashboard: React.FC = () => {
                                 ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100' 
                                 : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                             }`}
-                            title={report.type === 'monthly' ? 'Descargar Paquete Mensual (4 Semanas + Mes)' : 'Descargar PDF'}
+                            title="Descargar PDF"
                         >
-                            {report.type === 'monthly' ? <FileStack className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                            <Download className="h-4 w-4" />
                         </button>
                         
                         <Link 
