@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Image as ImageIcon, Zap, Calendar, MapPin, CheckCircle, Clock } from 'lucide-react';
+import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Calendar, MapPin, CheckCircle } from 'lucide-react';
 import { api } from '../services/db';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,8 +19,6 @@ export const TechScan: React.FC = () => {
   // Schedule State
   const [myVisits, setMyVisits] = useState<Visit[]>([]);
   
-  // Input para subir archivo (fallback)
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   // Auto-start scanning on mount for "Arrive & Scan" feel
@@ -56,7 +54,7 @@ export const TechScan: React.FC = () => {
 
       const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
       if (!isSecure) {
-          setError("HTTPS requerido para cámara. Usa 'Subir Foto'.");
+          setError("HTTPS requerido para cámara.");
           setScanning(false);
           return;
       }
@@ -88,7 +86,7 @@ export const TechScan: React.FC = () => {
               );
           } catch (err: any) {
               console.warn("Auto-start camera failed:", err);
-              // Si falla el auto-start, dejamos que el usuario lo intente manual o suba foto
+              // Si falla el auto-start, dejamos que el usuario lo intente manual
               setScanning(false);
               if (err.name === 'NotAllowedError') setError("Permiso de cámara denegado.");
           }
@@ -130,32 +128,6 @@ export const TechScan: React.FC = () => {
       } finally {
           setLoading(false);
       }
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      if (!scannerRef.current) {
-          scannerRef.current = new Html5Qrcode("reader");
-      }
-
-      setLoading(true);
-      scannerRef.current.scanFile(file, true)
-        .then(decodedText => {
-            handleProcessId(decodedText);
-        })
-        .catch(err => {
-            console.error(err);
-            setError("No se detectó código QR en la imagen.");
-            setLoading(false);
-        });
-  };
-
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!machineId) return;
-    handleProcessId(machineId);
   };
 
   return (
@@ -228,17 +200,6 @@ export const TechScan: React.FC = () => {
                 <p className="text-red-700 font-medium text-sm">{error}</p>
             </div>
           )}
-
-          {/* Manual Options (Collapsed/Small) */}
-          <div className="mt-4 flex justify-center space-x-4">
-               <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-slate-400 font-bold hover:text-blue-600 flex items-center"
-               >
-                   <ImageIcon className="h-4 w-4 mr-1" /> Subir Foto
-               </button>
-               <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-          </div>
       </section>
 
       {/* SECTION 2: SCHEDULE */}

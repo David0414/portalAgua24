@@ -4,7 +4,7 @@ import { api } from '../services/db';
 import { Machine, User, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { sendWhatsAppNotification, generateStartVisitMessage } from '../services/whatsapp';
-import { MapPin, MessageCircle, ArrowRight, UserCheck, ShieldCheck, Loader2 } from 'lucide-react';
+import { MapPin, MessageCircle, ArrowRight, UserCheck, ShieldCheck, Loader2, Lock } from 'lucide-react';
 
 export const TechStartVisit: React.FC = () => {
   const { machineId } = useParams<{ machineId: string }>();
@@ -14,6 +14,9 @@ export const TechStartVisit: React.FC = () => {
   const [machine, setMachine] = useState<Machine | null>(null);
   const [contacts, setContacts] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // State to track if notification has been sent
+  const [hasNotified, setHasNotified] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,9 +45,13 @@ export const TechStartVisit: React.FC = () => {
     }
     const message = generateStartVisitMessage(machine.location, techUser.name);
     sendWhatsAppNotification(contact.phone, message);
+    
+    // Unlock the next step
+    setHasNotified(true);
   };
 
   const handleContinue = () => {
+    if (!hasNotified) return;
     navigate(`/tech/form/${machineId}`);
   };
 
@@ -70,9 +77,9 @@ export const TechStartVisit: React.FC = () => {
         <div className="p-4 bg-slate-50 border-b border-slate-200">
            <h3 className="font-bold text-slate-700 flex items-center">
              <MessageCircle className="h-4 w-4 mr-2 text-green-600" />
-             Notificar Inicio de Servicio
+             1. Notificar Llegada
            </h3>
-           <p className="text-xs text-slate-500 mt-1">Envía un WhatsApp para avisar que has llegado.</p>
+           <p className="text-xs text-slate-500 mt-1">Debes avisar al menos a un contacto para continuar.</p>
         </div>
         
         <div className="divide-y divide-slate-100">
@@ -92,7 +99,7 @@ export const TechStartVisit: React.FC = () => {
                
                <button 
                   onClick={() => handleNotify(contact)}
-                  className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center hover:bg-green-600 transition shadow-sm"
+                  className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center hover:bg-green-600 transition shadow-sm active:scale-95"
                >
                   <MessageCircle className="h-3 w-3 mr-1" />
                   Avisar
@@ -107,13 +114,35 @@ export const TechStartVisit: React.FC = () => {
         </div>
       </div>
 
-      <button
-        onClick={handleContinue}
-        className="w-full flex items-center justify-center space-x-2 bg-brand-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:bg-brand-700 transition transform hover:scale-[1.02]"
-      >
-        <span>Comenzar Checklist</span>
-        <ArrowRight className="h-5 w-5" />
-      </button>
+      {/* Botón condicional */}
+      <div className="pt-2">
+        <button
+            onClick={handleContinue}
+            disabled={!hasNotified}
+            className={`w-full flex items-center justify-center space-x-2 px-6 py-4 rounded-xl font-bold shadow-lg transition transform ${
+                hasNotified 
+                ? 'bg-brand-600 text-white hover:bg-brand-700 hover:scale-[1.02]' 
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+        >
+            {hasNotified ? (
+                <>
+                    <span>2. Comenzar Checklist</span>
+                    <ArrowRight className="h-5 w-5" />
+                </>
+            ) : (
+                <>
+                    <Lock className="h-5 w-5 mr-2" />
+                    <span>Avisa para continuar</span>
+                </>
+            )}
+        </button>
+        {!hasNotified && (
+            <p className="text-center text-xs text-slate-400 mt-3 animate-pulse">
+                Debes enviar notificación de llegada primero.
+            </p>
+        )}
+      </div>
     </div>
   );
 };

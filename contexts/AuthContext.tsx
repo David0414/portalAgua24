@@ -4,7 +4,8 @@ import { api } from '../services/db';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, pass: string) => Promise<boolean>;
+  // Updated signature to accept expectedRole
+  login: (email: string, pass: string, expectedRole?: Role) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -24,10 +25,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, pass: string) => {
+  const login = async (email: string, pass: string, expectedRole?: Role) => {
     try {
       const foundUser = await api.login(email, pass);
+      
       if (foundUser) {
+        // SECURITY CHECK: Ensure user role matches the portal they are trying to access
+        if (expectedRole && foundUser.role !== expectedRole) {
+            console.warn(`Login blocked: User ${foundUser.role} tried to access ${expectedRole} portal.`);
+            return false;
+        }
+
         setUser(foundUser);
         localStorage.setItem('aquacheck_user', JSON.stringify(foundUser));
         return true;

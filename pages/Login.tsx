@@ -24,7 +24,6 @@ export const Login: React.FC = () => {
        
        if (fromLocation) {
            // CORRECCIÓN: Reconstruir la ruta completa incluyendo 'search' (?id=...) y 'hash'.
-           // Esto asegura que si el técnico da click en un link de corrección, llegue al reporte correcto.
            const target = `${fromLocation.pathname}${fromLocation.search || ''}${fromLocation.hash || ''}`;
            navigate(target, { replace: true });
        } else {
@@ -46,15 +45,18 @@ export const Login: React.FC = () => {
   let labelIdentifier = "Correo Electrónico";
   let placeholderId = "usuario@ejemplo.com";
   let inputType = "email";
+  let expectedRole = Role.TECHNICIAN; // Default
 
   if (roleType === 'tech') {
     title = "Portal Técnico";
     colorClass = "bg-brand-600";
     icon = <Wrench className="h-8 w-8 text-white" />;
+    expectedRole = Role.TECHNICIAN;
   } else if (roleType === 'owner') {
     title = "Portal Propietario";
     colorClass = "bg-indigo-600";
     icon = <ShieldCheck className="h-8 w-8 text-white" />;
+    expectedRole = Role.OWNER;
   } else if (roleType === 'condo') {
     title = "Portal Condominio";
     colorClass = "bg-teal-600";
@@ -62,6 +64,7 @@ export const Login: React.FC = () => {
     labelIdentifier = "Usuario de Torre/Edificio"; 
     placeholderId = "ej. torre-a";
     inputType = "text";
+    expectedRole = Role.CONDO_ADMIN;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,12 +72,12 @@ export const Login: React.FC = () => {
     setLoading(true);
     setError('');
 
-    const success = await login(identifier, password);
+    // Pass the expectedRole to the login function to enforce strict portal access
+    const success = await login(identifier, password, expectedRole);
     setLoading(false);
 
     if (!success) {
-      // El mensaje de error ya se maneja con alert en db.ts, pero mostramos uno visual aquí también
-      setError('No se pudo iniciar sesión. Revise sus credenciales.');
+      setError('Credenciales inválidas o acceso no autorizado para este portal.');
     }
   };
 
