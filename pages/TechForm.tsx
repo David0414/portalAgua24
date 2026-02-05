@@ -75,16 +75,19 @@ export const TechForm: React.FC = () => {
   };
 
   const handlePhotosChange = (itemId: string, photos: string[]) => {
-    setValues(prev => ({
-      ...prev,
-      [itemId]: { 
-          ...prev[itemId], 
-          itemId, 
-          photos,
-          // Update legacy photoUrl with the first photo for backward compatibility in listing
-          photoUrl: photos.length > 0 ? photos[0] : '' 
-      }
-    }));
+    setValues(prev => {
+        const existingItem = prev[itemId] || { itemId, value: '' }; // Fallback if item doesn't exist yet
+        return {
+            ...prev,
+            [itemId]: { 
+                ...existingItem,
+                itemId, 
+                photos: photos,
+                // Sync legacy field
+                photoUrl: photos.length > 0 ? photos[0] : '' 
+            }
+        };
+    });
   };
 
   const validateForm = () => {
@@ -331,7 +334,7 @@ export const TechForm: React.FC = () => {
                     </p>
                     <PhotoUpload
                         label={item.label}
-                        // Use photos array preferentially, fall back to legacy photoUrl wrap
+                        // Use photos array preferentially, fall back to legacy photoUrl wrap or empty array
                         values={values[item.id]?.photos || (values[item.id]?.photoUrl ? [values[item.id]?.photoUrl!] : [])}
                         onChange={(urls) => handlePhotosChange(item.id, urls)}
                     />
