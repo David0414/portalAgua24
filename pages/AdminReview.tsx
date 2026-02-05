@@ -178,6 +178,7 @@ export const AdminReview: React.FC = () => {
   // WhatsApp Functions
   const sendTechWhatsApp = () => {
     if (outcome && report) {
+      // Enviar estrictamente al ID del técnico (que es su teléfono)
       sendWhatsAppNotification(report.technicianId, outcome.message);
     }
   };
@@ -204,6 +205,7 @@ export const AdminReview: React.FC = () => {
         return;
     }
     const msg = getCondoMessage();
+    // Enviar estrictamente al teléfono del contacto del condominio
     sendWhatsAppNotification(condoContact.phone, msg);
   };
 
@@ -227,7 +229,7 @@ export const AdminReview: React.FC = () => {
       <div className="max-w-xl mx-auto mt-8 p-6 bg-white rounded-2xl shadow-2xl text-center border-t-8 border-indigo-500 animate-in fade-in zoom-in duration-300">
         
         {/* HEADER DE ESTATUS */}
-        <div className="flex flex-col items-center mb-8">
+        <div className="flex flex-col items-center mb-6">
           <div className={`p-4 rounded-full mb-3 ${outcome.status === ReportStatus.APPROVED ? 'bg-green-100' : 'bg-red-100'}`}>
             {outcome.status === ReportStatus.APPROVED ? (
               <Check className="h-10 w-10 text-green-600" />
@@ -256,15 +258,17 @@ export const AdminReview: React.FC = () => {
                         <UserCheck className="h-5 w-5 text-blue-600 mr-3 mt-1" />
                         <div>
                             <h3 className="font-bold text-slate-800">Confirmar al Técnico</h3>
-                            <p className="text-xs text-slate-500">Notificar a <span className="font-medium">{report.technicianName}</span></p>
+                            <p className="text-xs text-slate-500">
+                                Nombre: <span className="font-bold">{report.technicianName}</span>
+                            </p>
                         </div>
                     </div>
                     <button
                         onClick={sendTechWhatsApp}
-                        className="w-full flex items-center justify-center space-x-2 bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 py-2.5 rounded-lg font-bold transition shadow-sm"
+                        className="w-full flex items-center justify-center space-x-2 bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 py-3 rounded-lg font-bold transition shadow-sm"
                     >
                         <MessageCircle className="h-4 w-4" />
-                        <span>Enviar WhatsApp</span>
+                        <span>Enviar a: {report.technicianId}</span>
                     </button>
                  </div>
                 
@@ -282,9 +286,6 @@ export const AdminReview: React.FC = () => {
                                             <span className="text-sm font-bold text-teal-800 flex items-center">
                                                 <UserCheck className="h-3 w-3 mr-1" /> {condoContact.name}
                                             </span>
-                                            <span className="text-xs text-teal-600 flex items-center mt-0.5">
-                                                <Phone className="h-3 w-3 mr-1" /> {condoContact.phone}
-                                            </span>
                                         </div>
                                     ) : (
                                         <p className="text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded">
@@ -299,7 +300,7 @@ export const AdminReview: React.FC = () => {
                         <div className="mb-4 bg-white border-l-4 border-amber-400 p-3 rounded-r shadow-sm flex items-start">
                             <Paperclip className="h-4 w-4 text-amber-500 mr-2 mt-0.5 flex-shrink-0" />
                             <p className="text-xs text-slate-600">
-                                <strong>Importante:</strong> El PDF ya se descargó en tu dispositivo. Debes <u>adjuntarlo manualmente</u> en el chat.
+                                <strong>Importante:</strong> El PDF ya se descargó. Debes adjuntarlo manualmente.
                             </p>
                         </div>
 
@@ -309,7 +310,7 @@ export const AdminReview: React.FC = () => {
                             className="w-full flex items-center justify-center space-x-2 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-bold transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Send className="h-4 w-4" />
-                            <span>Abrir Chat y Adjuntar PDF</span>
+                            <span>Enviar a: {condoContact?.phone || 'Sin número'}</span>
                         </button>
                     </div>
                 ) : (
@@ -328,7 +329,7 @@ export const AdminReview: React.FC = () => {
                         className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-lg"
                      >
                         <AlertTriangle className="h-5 w-5" />
-                        <span>Enviar Correcciones</span>
+                        <span>Enviar a: {report.technicianId}</span>
                      </button>
                  </div>
             )}
