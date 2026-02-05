@@ -31,7 +31,7 @@ export const TechScan: React.FC = () => {
     return new Date(`${dateStr}T00:00:00`);
   };
 
-  // 1. DATA LOADING EFFECT (Priority 1: Immediate on mount)
+  // 1. DATA LOADING EFFECT
   useEffect(() => {
     const loadQuickData = async () => {
         if (!user) return;
@@ -57,63 +57,77 @@ export const TechScan: React.FC = () => {
     loadQuickData();
   }, [user]);
 
-  // 2. CAMERA EFFECT (Priority 2: Async start)
+  // 2. CAMERA EFFECT
   useEffect(() => {
-    // Check if we can auto-start
-    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
-    if (isSecure) {
-        startScanning();
-    }
+    // Attempt to start scanning after component mount
+    const timer = setTimeout(() => {
+        const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
+        if (isSecure) {
+            startScanning();
+        }
+    }, 800); // Slight delay to ensure DOM ID 'reader' is ready
 
     return () => {
+      clearTimeout(timer);
       stopScanning();
     };
   }, []);
 
   const startScanning = async () => {
-      setError('');
-      setScanning(true);
-
-      const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1');
-      if (!isSecure) {
-          setError("HTTPS requerido para cámara.");
-          setScanning(false);
+      // Prevent multiple starts
+      if (scanning) return;
+      
+      // Check if element exists
+      const readerElement = document.getElementById("reader");
+      if (!readerElement) {
+          console.warn("Reader element not found, retrying...");
           return;
       }
 
-      // Small delay to allow UI to render first
-      setTimeout(async () => {
-          try {
-              if (!scannerRef.current) {
-                  scannerRef.current = new Html5Qrcode("reader");
+      setError('');
+      setScanning(true);
+
+      try {
+          // Cleanup existing instance if any
+          if (scannerRef.current) {
+              try {
+                  await scannerRef.current.stop();
+                  await scannerRef.current.clear();
+              } catch (e) { 
+                  // Ignore stop errors
               }
-
-              // Configuración optimizada para escaneo rápido
-              const config = { 
-                  fps: 15, 
-                  qrbox: { width: 280, height: 280 },
-                  aspectRatio: 1.0,
-                  disableFlip: false
-              };
-
-              await scannerRef.current.start(
-                  { facingMode: "environment" }, 
-                  config,
-                  (decodedText) => {
-                      handleProcessId(decodedText);
-                      stopScanning();
-                  },
-                  (errorMessage) => {
-                      // Ignorar errores de frame vacíos
-                  }
-              );
-          } catch (err: any) {
-              console.warn("Auto-start camera failed:", err);
-              // Si falla el auto-start, dejamos que el usuario lo intente manual
-              setScanning(false);
-              if (err.name === 'NotAllowedError') setError("Permiso de cámara denegado.");
           }
-      }, 500);
+
+          const html5QrCode = new Html5Qrcode("reader");
+          scannerRef.current = html5QrCode;
+
+          // Configuración optimizada para escaneo rápido
+          const config = { 
+              fps: 15, 
+              qrbox: { width: 250, height: 250 },
+              aspectRatio: 1.0,
+              disableFlip: false
+          };
+
+          await html5QrCode.start(
+              { facingMode: "environment" }, 
+              config,
+              (decodedText) => {
+                  handleProcessId(decodedText);
+                  // Don't stop scanning immediately to avoid UI jumps, handleProcessId will navigate away
+              },
+              (errorMessage) => {
+                  // Ignorar errores de frame vacíos
+              }
+          );
+      } catch (err: any) {
+          console.warn("Camera start failed:", err);
+          setScanning(false);
+          // Only show error if it's strictly a permission issue
+          if (err.name === 'NotAllowedError' || err.name === 'NotFoundError') {
+              setError("No se pudo acceder a la cámara. Verifique permisos.");
+          }
+      }
   };
 
   const stopScanning = async () => {
@@ -131,8 +145,12 @@ export const TechScan: React.FC = () => {
   };
 
   const handleProcessId = async (id: string) => {
+      // Prevent double processing
+      if (loading) return;
+      
       setLoading(true);
       setError('');
+      stopScanning(); // Now stop scanning
       
       const cleanId = id.trim();
       setMachineId(cleanId); 
@@ -145,10 +163,11 @@ export const TechScan: React.FC = () => {
           } else {
               setError(`Máquina "${cleanId}" no encontrada en el sistema.`);
               if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+              // Restart scanning after error (optional, but good UX)
+              setLoading(false);
           }
       } catch (e) {
           setError("Error de conexión verificando la máquina.");
-      } finally {
           setLoading(false);
       }
   };
@@ -160,7 +179,7 @@ export const TechScan: React.FC = () => {
       {dataLoading ? (
           <div className="bg-slate-50 p-4 rounded-xl flex items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-slate-400 mr-2" />
-              <span className="text-slate-500 text-sm">Verificando pendientes...</span>
+              <span className="text-slate-500 text-sm">Cargando datos...</span>
           </div>
       ) : rejectedReports.length > 0 && (
           <section className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden shadow-sm animate-pulse-slow">
@@ -204,7 +223,7 @@ export const TechScan: React.FC = () => {
 
       {/* SECTION 1: SCANNER */}
       <section>
-          {!scanning && (
+          {!scanning && !loading && (
             <div className="text-center py-4">
                 <h2 className="text-2xl font-bold text-slate-800">Iniciar Servicio</h2>
                 <p className="text-slate-500">Escanea el QR para comenzar el checklist</p>
@@ -212,7 +231,7 @@ export const TechScan: React.FC = () => {
           )}
 
           {/* SCANNER VIEWPORT */}
-          <div className={`relative rounded-2xl overflow-hidden shadow-2xl border-4 ${scanning ? 'border-blue-500' : 'border-slate-200'} bg-black transition-all duration-300`}>
+          <div className={`relative rounded-2xl overflow-hidden shadow-2xl border-4 ${scanning ? 'border-blue-500' : 'border-slate-200'} bg-black transition-all duration-300 min-h-[350px]`}>
               
               {/* Loading Overlay inside Scanner */}
               {loading && (
@@ -222,7 +241,8 @@ export const TechScan: React.FC = () => {
                   </div>
               )}
 
-              <div id="reader" className="w-full min-h-[350px] bg-black"></div>
+              {/* THIS DIV IS CRITICAL FOR CAMERA */}
+              <div id="reader" className="w-full h-full bg-black min-h-[350px]"></div>
               
               {scanning && (
                   <>
@@ -233,11 +253,6 @@ export const TechScan: React.FC = () => {
                             <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl-lg"></div>
                             <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1 rounded-br-lg"></div>
                         </div>
-                    </div>
-                    <div className="absolute bottom-4 left-0 right-0 text-center z-20">
-                        <p className="text-white/90 text-sm font-medium bg-black/40 inline-block px-4 py-1 rounded-full backdrop-blur-md">
-                            Escaneando...
-                        </p>
                     </div>
                     <button 
                         onClick={stopScanning}

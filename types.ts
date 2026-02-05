@@ -37,7 +37,8 @@ export interface ChecklistItemDefinition {
 export interface ChecklistValue {
   itemId: string;
   value: string | number | boolean;
-  photoUrl?: string; 
+  photoUrl?: string; // Legacy single photo
+  photos?: string[]; // New multiple photos support
   comment?: string; 
 }
 

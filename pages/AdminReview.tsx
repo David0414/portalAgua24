@@ -177,6 +177,14 @@ export const AdminReview: React.FC = () => {
     return report.data.find(d => d.itemId === itemId);
   };
 
+  // Helper to extract photos array (supporting legacy)
+  const getPhotos = (dataItem: any): string[] => {
+      if (!dataItem) return [];
+      if (dataItem.photos && dataItem.photos.length > 0) return dataItem.photos;
+      if (dataItem.photoUrl) return [dataItem.photoUrl];
+      return [];
+  };
+
   // --- SUCCESS VIEW (DOBLE NOTIFICACIÓN) ---
   if (outcome) {
     const isActuallyVisible = report.type !== 'special' ? true : showInCondo;
@@ -337,6 +345,7 @@ export const AdminReview: React.FC = () => {
                  {checklistDef.map((item) => {
                      const data = getValue(item.id);
                      if (!data) return null;
+                     const photos = getPhotos(data);
                      
                      return (
                          <div key={item.id} className="mb-6">
@@ -345,20 +354,21 @@ export const AdminReview: React.FC = () => {
                                  {data.value}
                              </div>
                              
-                             {/* Evidence Photo for Special Report */}
-                             {data.photoUrl && (
+                             {/* Evidence Photos */}
+                             {photos.length > 0 && (
                                  <div className="mt-4">
                                      <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase">Evidencia Fotográfica</h4>
-                                     <div className="relative group inline-block">
-                                        <img 
-                                            src={data.photoUrl} 
-                                            alt="Evidencia" 
-                                            className="max-h-64 rounded-lg border border-slate-300 cursor-pointer shadow-sm hover:opacity-90 transition"
-                                            onClick={() => setPreviewImage(data.photoUrl || null)}
-                                        />
-                                        <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full text-white pointer-events-none">
-                                            <ZoomIn className="h-4 w-4" />
-                                        </div>
+                                     <div className="flex flex-wrap gap-2">
+                                        {photos.map((url, idx) => (
+                                            <div key={idx} className="relative group inline-block">
+                                                <img 
+                                                    src={url} 
+                                                    alt={`Evidencia ${idx}`} 
+                                                    className="h-32 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-sm hover:opacity-90 transition"
+                                                    onClick={() => setPreviewImage(url)}
+                                                />
+                                            </div>
+                                        ))}
                                      </div>
                                  </div>
                              )}
@@ -388,6 +398,7 @@ export const AdminReview: React.FC = () => {
                             const val = data?.value;
                             const isBool = item.type === 'boolean';
                             const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                            const photos = getPhotos(data);
                             
                             return (
                                 <tr key={item.id} className={`${rowBg} hover:bg-indigo-50/30 transition`}>
@@ -415,17 +426,21 @@ export const AdminReview: React.FC = () => {
                                                 EXPIRADO
                                             </span>
                                         ) : (
-                                            data?.photoUrl ? (
-                                                <div className="relative group inline-block">
-                                                    <img 
-                                                        src={data.photoUrl} 
-                                                        alt="Evidencia" 
-                                                        className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:opacity-80 transition z-10 relative bg-white"
-                                                        onClick={() => setPreviewImage(data.photoUrl || null)}
-                                                    />
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-20 transition pointer-events-none rounded">
-                                                        <ZoomIn className="text-white opacity-0 group-hover:opacity-100 h-3 w-3" />
-                                                    </div>
+                                            photos.length > 0 ? (
+                                                <div className="flex gap-1 justify-center">
+                                                    {photos.slice(0, 2).map((url, i) => (
+                                                        <div key={i} className="relative group inline-block">
+                                                            <img 
+                                                                src={url} 
+                                                                alt="Evidencia" 
+                                                                className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:opacity-80 transition z-10 relative bg-white"
+                                                                onClick={() => setPreviewImage(url)}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                    {photos.length > 2 && (
+                                                        <span className="text-xs text-slate-400 flex items-center">+{photos.length - 2}</span>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <span className="text-xs text-red-300 italic font-bold">Sin foto</span>

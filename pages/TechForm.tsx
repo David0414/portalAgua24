@@ -45,6 +45,10 @@ export const TechForm: React.FC = () => {
           if (Array.isArray(rawData)) {
             rawData.forEach((item: any) => {
               if (item && item.itemId) {
+                // Compatibility: Migrate legacy photoUrl to photos array if needed
+                if (item.photoUrl && (!item.photos || item.photos.length === 0)) {
+                    item.photos = [item.photoUrl];
+                }
                 valMap[item.itemId] = item;
               }
             });
@@ -70,10 +74,16 @@ export const TechForm: React.FC = () => {
     }));
   };
 
-  const handlePhotoChange = (itemId: string, photoUrl: string) => {
+  const handlePhotosChange = (itemId: string, photos: string[]) => {
     setValues(prev => ({
       ...prev,
-      [itemId]: { ...prev[itemId], itemId, photoUrl }
+      [itemId]: { 
+          ...prev[itemId], 
+          itemId, 
+          photos,
+          // Update legacy photoUrl with the first photo for backward compatibility in listing
+          photoUrl: photos.length > 0 ? photos[0] : '' 
+      }
     }));
   };
 
@@ -86,7 +96,7 @@ export const TechForm: React.FC = () => {
     for (const item of checklist) {
       const entry = values[item.id];
       
-      // 1. Validar Valor Requerido (El valor SI es obligatorio)
+      // 1. Validar Valor Requerido
       if (item.required) {
         if (!entry || entry.value === undefined || entry.value === "") {
              alert(`Falta completar el campo: "${item.label}"`);
@@ -94,6 +104,18 @@ export const TechForm: React.FC = () => {
              element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
              return false;
         }
+      }
+
+      // 2. VALIDAR FOTO OBLIGATORIA (NUEVA REGLA: TODAS)
+      // Excluir items marcados como opcionales si los hubiera, pero usuario pidio TODAS
+      const hasPhotos = entry?.photos && entry.photos.length > 0;
+      const hasLegacyPhoto = entry?.photoUrl && entry.photoUrl.length > 0;
+      
+      if (!hasPhotos && !hasLegacyPhoto) {
+          alert(`FOTO OBLIGATORIA faltante en: "${item.label}"\n\nDebes subir al menos una foto de evidencia para cada punto.`);
+          const element = document.getElementById(`item-${item.id}`);
+          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return false;
       }
     }
     return true;
@@ -275,7 +297,6 @@ export const TechForm: React.FC = () => {
                         </button>
                     </div>
                 ) : item.type === 'textarea' ? (
-                    // TEXTAREA FOR SPECIAL REPORTS
                     <div className="relative">
                         <textarea
                             required
@@ -303,19 +324,20 @@ export const TechForm: React.FC = () => {
                     </div>
                 )}
 
-                {/* Photo Upload (Opcional - But visually main evidence for special reports) */}
+                {/* Photo Upload (Multiple) */}
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                     <p className="text-xs font-bold text-slate-400 uppercase mb-2 flex items-center">
-                        <Camera className="h-3 w-3 mr-1" /> Evidencia Fotográfica {item.type === 'textarea' ? '(Importante)' : '(Opcional)'}
+                        <Camera className="h-3 w-3 mr-1" /> Evidencia Fotográfica (Obligatoria)
                     </p>
                     <PhotoUpload
                         label={item.label}
-                        value={values[item.id]?.photoUrl}
-                        onChange={(url) => handlePhotoChange(item.id, url)}
+                        // Use photos array preferentially, fall back to legacy photoUrl wrap
+                        values={values[item.id]?.photos || (values[item.id]?.photoUrl ? [values[item.id]?.photoUrl!] : [])}
+                        onChange={(urls) => handlePhotosChange(item.id, urls)}
                     />
                 </div>
 
-                {/* Optional Comment Box (Only for standard items, not for textarea which is already a comment) */}
+                {/* Optional Comment Box */}
                 {item.type !== 'textarea' && (
                     <div>
                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center">
