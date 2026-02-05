@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight, Copy, Users, Phone } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format, differenceInDays } from 'date-fns';
@@ -15,7 +15,7 @@ export const AdminReview: React.FC = () => {
   const [report, setReport] = useState<Report | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
   const [condoContact, setCondoContact] = useState<User | null>(null);
-  const [machineInfo, setMachineInfo] = useState<{location: string} | null>(null);
+  const [machineInfo, setMachineInfo] = useState<{location: string, id: string} | null>(null);
   
   // VISIBILITY STATE FOR SPECIAL REPORTS
   const [showInCondo, setShowInCondo] = useState(true);
@@ -182,10 +182,42 @@ export const AdminReview: React.FC = () => {
     }
   };
 
+  // Helper to generate the message string
+  const getCondoMessage = () => {
+      if (!report || !machineInfo) return '';
+      const dateStr = format(new Date(report.createdAt), "dd/MM/yyyy HH:mm");
+      
+      // Intentar obtener valores clave para el resumen
+      const tds = report.data.find(d => d.itemId === 'w_tds')?.value || '--';
+      const ph = report.data.find(d => d.itemId === 'w_ph')?.value || '--';
+      
+      if (report.type === 'special') {
+          return `⚠️ *Bitácora de Evento*\n\nSe ha registrado un reporte especial en *${machineInfo.location}* (ID: ${machineInfo.id}) el día ${dateStr}.\n\n📄 Detalles disponibles en su portal:\n${PRODUCTION_URL}/#/login/condo\n\n_Agua/24 - Siempre pura._`;
+      }
+
+      return generateCondoReportMessage(machineInfo.id, machineInfo.location, dateStr, tds.toString(), ph.toString());
+  };
+
   const sendCondoWhatsApp = () => {
-    if (!report || !machineInfo || !condoContact?.phone) return;
-    const msg = `✅ *Reporte Disponible*\n\nAdjunto el PDF con los detalles del reporte (${report.type === 'special' ? 'Especial' : 'Mantenimiento'}) en *${machineInfo.location}*.\n\nTambién disponible en tu portal: ${PRODUCTION_URL}/#/login/condo`;
+    if (!condoContact?.phone) {
+        alert("El usuario asignado no tiene teléfono registrado.");
+        return;
+    }
+    const msg = getCondoMessage();
     sendWhatsAppNotification(condoContact.phone, msg);
+  };
+
+  const handleCopyForGroup = async () => {
+      const msg = getCondoMessage();
+      try {
+          await navigator.clipboard.writeText(msg);
+          // Alertar al usuario
+          alert("✅ Mensaje copiado al portapapeles.\n\nAhora se abrirá WhatsApp. Selecciona el Grupo y pega el mensaje.");
+          // Abrir WhatsApp Web genérico
+          window.open('https://web.whatsapp.com', '_blank');
+      } catch (err) {
+          alert("No se pudo copiar automáticamente. Intenta de nuevo.");
+      }
   };
 
   const getValue = (itemId: string) => {
@@ -247,36 +279,60 @@ export const AdminReview: React.FC = () => {
                 
                 {/* Step 2: Condo - ONLY IF VISIBLE */}
                 {isActuallyVisible ? (
-                    condoContact ? (
-                        <div className="border border-teal-200 rounded-xl overflow-hidden">
-                            <div className="bg-teal-50 p-3 text-left border-b border-teal-100">
-                                <p className="text-xs font-bold text-teal-800 uppercase mb-1">Paso 2: Enviar a Cliente</p>
-                                <p className="text-sm text-teal-600">Al dar clic, se abrirá WhatsApp. <strong>Arrastra el PDF descargado</strong> al chat.</p>
+                    <div className="border border-teal-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="bg-teal-50 p-3 text-left border-b border-teal-100 flex justify-between items-center">
+                            <div>
+                                <p className="text-xs font-bold text-teal-800 uppercase mb-1">Paso 2: Avisar al Condominio</p>
+                                {condoContact ? (
+                                    <p className="text-sm text-teal-700 font-medium flex items-center">
+                                        <Users className="h-3 w-3 mr-1" />
+                                        {condoContact.name}
+                                    </p>
+                                ) : (
+                                    <p className="text-sm text-red-400">Sin contacto asignado</p>
+                                )}
                             </div>
+                            {condoContact?.phone && (
+                                <div className="text-xs text-teal-600 bg-white px-2 py-1 rounded border border-teal-100 flex items-center">
+                                    <Phone className="h-3 w-3 mr-1" />
+                                    {condoContact.phone}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex divide-x divide-slate-100">
+                            {/* Option A: Direct Chat */}
                             <button
                                 onClick={sendCondoWhatsApp}
-                                className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-teal-50 transition"
+                                disabled={!condoContact}
+                                className="flex-1 px-4 py-3 bg-white hover:bg-teal-50 transition flex flex-col items-center justify-center disabled:opacity-50"
                             >
-                                <div className="flex items-center">
-                                    <div className="bg-teal-200 p-2 rounded-full mr-3">
-                                        <Paperclip className="h-5 w-5 text-teal-800" />
-                                    </div>
-                                    <div className="text-left">
-                                        <span className="block font-bold text-teal-900">2. Abrir WhatsApp Cliente</span>
-                                    </div>
+                                <div className="bg-teal-100 p-2 rounded-full mb-1">
+                                    <MessageCircle className="h-5 w-5 text-teal-700" />
                                 </div>
-                                <ExternalLink className="h-4 w-4 text-teal-500" />
+                                <span className="text-xs font-bold text-slate-700">
+                                    {condoContact ? `Enviar a ${condoContact.name.split(' ')[0]}` : 'Chat Directo'}
+                                </span>
+                                <span className="text-[9px] text-slate-400">Mensaje Individual</span>
+                            </button>
+
+                            {/* Option B: Group Copy */}
+                            <button
+                                onClick={handleCopyForGroup}
+                                className="flex-1 px-4 py-3 bg-white hover:bg-teal-50 transition flex flex-col items-center justify-center border-l border-slate-100"
+                            >
+                                <div className="bg-indigo-100 p-2 rounded-full mb-1">
+                                    <Users className="h-5 w-5 text-indigo-700" />
+                                </div>
+                                <span className="text-xs font-bold text-slate-700">Copiar para Grupo</span>
+                                <span className="text-[9px] text-slate-400">Copiar y Abrir WA</span>
                             </button>
                         </div>
-                    ) : (
-                        <div className="p-3 bg-slate-50 text-slate-400 text-xs rounded-lg text-left">
-                            * No hay usuario de condominio asignado para notificar.
-                        </div>
-                    )
+                    </div>
                 ) : (
                     <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center justify-center text-amber-700 text-sm">
                         <EyeOff className="h-4 w-4 mr-2" />
-                        <span>Reporte oculto para el cliente. No se requiere notificación.</span>
+                        <span>Reporte oculto para el condominio. No se requiere notificación.</span>
                     </div>
                 )}
                </>
