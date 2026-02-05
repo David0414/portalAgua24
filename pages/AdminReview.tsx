@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format, differenceInDays } from 'date-fns';
@@ -17,8 +17,8 @@ export const AdminReview: React.FC = () => {
   const [condoContact, setCondoContact] = useState<User | null>(null);
   const [machineInfo, setMachineInfo] = useState<{location: string} | null>(null);
   
-  // History no longer needed for PDF
-  // const [history, setHistory] = useState<Report[]>([]);
+  // VISIBILITY STATE FOR SPECIAL REPORTS
+  const [showInCondo, setShowInCondo] = useState(true);
 
   // Modal states
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -40,6 +40,9 @@ export const AdminReview: React.FC = () => {
       if (reportId) {
         const r = await api.getReportById(reportId);
         setReport(r || null);
+        
+        // Default visibility to true (or whatever is in DB if already reviewed)
+        if (r) setShowInCondo(r.showInCondo !== false);
 
         if (r) {
             // Fetch Machine Info & Condo Contact
@@ -84,10 +87,10 @@ export const AdminReview: React.FC = () => {
   const handleApprove = async () => {
     setLoadingAction(true);
     try {
-      // 1. Update Status in DB
-      await api.reviewReport(report.id, ReportStatus.APPROVED);
+      // 1. Update Status in DB with Visibility Flag
+      await api.reviewReport(report.id, ReportStatus.APPROVED, undefined, showInCondo);
       
-      // 2. Auto-Download PDF for the Owner
+      // 2. Auto-Download PDF for the Owner (Always download for owner)
       if (machineInfo) {
           const approvedReport = { ...report, status: ReportStatus.APPROVED };
           generateReportPDF(approvedReport, machineInfo.location, false);
@@ -112,7 +115,8 @@ export const AdminReview: React.FC = () => {
 
     setLoadingAction(true);
     try {
-      await api.reviewReport(report.id, ReportStatus.REJECTED, rejectReason);
+      // Rejecting sets status to REJECTED. Visibility doesn't matter much here, but we can save it.
+      await api.reviewReport(report.id, ReportStatus.REJECTED, rejectReason, false);
       
       const editLink = generateTechEditLink(report.id, report.machineId);
       const msgTech = `❌ *Reporte Rechazado*\nHay observaciones en tu reporte de ${report.machineId}:\n_"${rejectReason}"_\n\nPor favor corrige aquí: ${editLink}`;
@@ -205,31 +209,38 @@ export const AdminReview: React.FC = () => {
                     <ExternalLink className="h-4 w-4 text-slate-400" />
                 </button>
                 
-                {/* Step 2: Condo */}
-                {condoContact ? (
-                    <div className="border border-teal-200 rounded-xl overflow-hidden">
-                        <div className="bg-teal-50 p-3 text-left border-b border-teal-100">
-                             <p className="text-xs font-bold text-teal-800 uppercase mb-1">Paso 2: Enviar a Cliente</p>
-                             <p className="text-sm text-teal-600">Al dar clic, se abrirá WhatsApp. <strong>Arrastra el PDF descargado</strong> al chat.</p>
-                        </div>
-                        <button
-                            onClick={sendCondoWhatsApp}
-                            className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-teal-50 transition"
-                        >
-                            <div className="flex items-center">
-                                <div className="bg-teal-200 p-2 rounded-full mr-3">
-                                    <Paperclip className="h-5 w-5 text-teal-800" />
-                                </div>
-                                <div className="text-left">
-                                    <span className="block font-bold text-teal-900">2. Abrir WhatsApp Cliente</span>
-                                </div>
+                {/* Step 2: Condo - ONLY IF VISIBLE */}
+                {showInCondo ? (
+                    condoContact ? (
+                        <div className="border border-teal-200 rounded-xl overflow-hidden">
+                            <div className="bg-teal-50 p-3 text-left border-b border-teal-100">
+                                <p className="text-xs font-bold text-teal-800 uppercase mb-1">Paso 2: Enviar a Cliente</p>
+                                <p className="text-sm text-teal-600">Al dar clic, se abrirá WhatsApp. <strong>Arrastra el PDF descargado</strong> al chat.</p>
                             </div>
-                            <ExternalLink className="h-4 w-4 text-teal-500" />
-                        </button>
-                    </div>
+                            <button
+                                onClick={sendCondoWhatsApp}
+                                className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-teal-50 transition"
+                            >
+                                <div className="flex items-center">
+                                    <div className="bg-teal-200 p-2 rounded-full mr-3">
+                                        <Paperclip className="h-5 w-5 text-teal-800" />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="block font-bold text-teal-900">2. Abrir WhatsApp Cliente</span>
+                                    </div>
+                                </div>
+                                <ExternalLink className="h-4 w-4 text-teal-500" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="p-3 bg-slate-50 text-slate-400 text-xs rounded-lg text-left">
+                            * No hay usuario de condominio asignado para notificar.
+                        </div>
+                    )
                 ) : (
-                    <div className="p-3 bg-slate-50 text-slate-400 text-xs rounded-lg text-left">
-                        * No hay usuario de condominio asignado para notificar.
+                    <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center justify-center text-amber-700 text-sm">
+                        <EyeOff className="h-4 w-4 mr-2" />
+                        <span>Reporte oculto para el cliente. No se requiere notificación.</span>
                     </div>
                 )}
                </>
@@ -257,7 +268,7 @@ export const AdminReview: React.FC = () => {
 
   // --- REVIEW VIEW ---
   return (
-    <div className="max-w-4xl mx-auto pb-32">
+    <div className="max-w-4xl mx-auto pb-48">
       <div className="flex justify-between items-center mb-4">
           <button onClick={goBackToDashboard} className="flex items-center text-slate-500 hover:text-brand-600 transition">
             <ArrowLeft className="h-4 w-4 mr-1" /> Volver
@@ -420,22 +431,53 @@ export const AdminReview: React.FC = () => {
       {/* ACTIONS FOOTER */}
       {report.status === ReportStatus.PENDING && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
-          <div className="max-w-4xl mx-auto flex space-x-4">
-            <button 
-              onClick={() => setRejectModalOpen(true)}
-              disabled={loadingAction}
-              className="flex-1 bg-white text-red-600 border border-red-200 py-3 rounded-xl font-bold hover:bg-red-50 flex justify-center items-center transition disabled:opacity-50"
-            >
-              <X className="mr-2" /> Rechazar
-            </button>
-            <button 
-              onClick={handleApprove}
-              disabled={loadingAction}
-              className="flex-[2] bg-gradient-to-r from-brand-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-brand-700 hover:to-indigo-700 flex justify-center items-center shadow-lg hover:shadow-xl transition disabled:opacity-70 transform hover:-translate-y-0.5"
-            >
-              {loadingAction ? <Loader2 className="mr-2 animate-spin" /> : <Check className="mr-2" />}
-              {loadingAction ? 'Procesando...' : 'Validar y Descargar'}
-            </button>
+          <div className="max-w-4xl mx-auto space-y-4">
+            
+            {/* VISIBILITY TOGGLE (ONLY FOR SPECIAL REPORTS) */}
+            {report.type === 'special' && (
+                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <div className="flex items-center">
+                        {showInCondo ? <Eye className="text-teal-600 h-5 w-5 mr-3" /> : <EyeOff className="text-slate-400 h-5 w-5 mr-3" />}
+                        <div>
+                            <span className="block text-sm font-bold text-slate-800">
+                                {showInCondo ? 'Visible para Condominio' : 'Oculto para Condominio'}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                                {showInCondo 
+                                 ? 'El cliente verá este reporte en su dashboard y podrás notificarle.' 
+                                 : 'Este reporte será de uso exclusivo para administración interna.'}
+                            </span>
+                        </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={showInCondo} 
+                            onChange={(e) => setShowInCondo(e.target.checked)} 
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                    </label>
+                </div>
+            )}
+
+            <div className="flex space-x-4">
+                <button 
+                onClick={() => setRejectModalOpen(true)}
+                disabled={loadingAction}
+                className="flex-1 bg-white text-red-600 border border-red-200 py-3 rounded-xl font-bold hover:bg-red-50 flex justify-center items-center transition disabled:opacity-50"
+                >
+                <X className="mr-2" /> Rechazar
+                </button>
+                <button 
+                onClick={handleApprove}
+                disabled={loadingAction}
+                className="flex-[2] bg-gradient-to-r from-brand-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-brand-700 hover:to-indigo-700 flex justify-center items-center shadow-lg hover:shadow-xl transition disabled:opacity-70 transform hover:-translate-y-0.5"
+                >
+                {loadingAction ? <Loader2 className="mr-2 animate-spin" /> : <Check className="mr-2" />}
+                {loadingAction ? 'Procesando...' : 'Validar y Continuar'}
+                </button>
+            </div>
           </div>
         </div>
       )}

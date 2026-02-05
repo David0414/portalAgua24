@@ -196,9 +196,14 @@ export const CondoDashboard: React.FC = () => {
 
       // Separate standard reports from special reports
       const standardReports = approvedReports.filter(r => r.type !== 'special');
-      const specialReps = approvedReports.filter(r => r.type === 'special');
+      
+      // LOGIC UPDATE: Filter special reports based on showInCondo flag
+      // If flag is undefined (old reports), we treat as true to maintain visibility
+      const specialReps = approvedReports.filter(r => 
+        r.type === 'special' && (r.showInCondo !== false)
+      );
 
-      setHistory(approvedReports); 
+      setHistory(approvedReports.filter(r => r.type !== 'special' || r.showInCondo !== false)); // Filter history too
       setLatestReport(standardReports[0] || null); 
       setSpecialReports(specialReps);
       setLoading(false);

@@ -3,7 +3,7 @@ import { api } from '../services/db';
 import { Report, ReportStatus, Machine, User } from '../types';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, Brush } from 'recharts';
-import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar, FileText, AlertOctagon, Download, FileStack } from 'lucide-react';
+import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar, FileText, AlertOctagon, Download, FileStack, Trophy } from 'lucide-react';
 import { format, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PRODUCTION_URL } from '../services/whatsapp';
@@ -100,6 +100,42 @@ export const OwnerDashboard: React.FC = () => {
           pendingReports: pending
       };
   }, [reports]);
+
+  // --- NEW: GLOBAL SALES RANKING BY MACHINE ---
+  const salesRanking = useMemo(() => {
+      const rankingMap: Record<string, { total: number, location: string, lastReport: string }> = {};
+      
+      // Initialize with all machines (even those with 0 sales)
+      machines.forEach(m => {
+          rankingMap[m.id] = { total: 0, location: m.location, lastReport: '' };
+      });
+
+      reports.forEach(r => {
+          const item = r.data.find(d => d.itemId === 'w13');
+          if (item && item.value) {
+              const val = parseFloat(item.value.toString().replace(/[^0-9.]/g, ''));
+              if (!isNaN(val)) {
+                  // If machine was deleted but report exists, safe check
+                  if (!rankingMap[r.machineId]) {
+                      rankingMap[r.machineId] = { total: 0, location: 'Máquina Eliminada', lastReport: '' };
+                  }
+                  
+                  rankingMap[r.machineId].total += val;
+
+                  // Update last report date
+                  if (!rankingMap[r.machineId].lastReport || new Date(r.createdAt) > new Date(rankingMap[r.machineId].lastReport)) {
+                      rankingMap[r.machineId].lastReport = r.createdAt;
+                  }
+              }
+          }
+      });
+
+      // Convert to array and sort DESC
+      return Object.entries(rankingMap)
+          .map(([id, data]) => ({ id, ...data }))
+          .sort((a, b) => b.total - a.total);
+
+  }, [reports, machines]);
 
   // --- FILTER REPORTS FOR LIST VIEW (Based on Machine) ---
   const filteredReportsForList = useMemo(() => {
@@ -314,8 +350,73 @@ export const OwnerDashboard: React.FC = () => {
           </div>
       </div>
 
+      {/* --- NUEVA TABLA GLOBAL DE INGRESOS --- */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="font-bold text-slate-800 flex items-center">
+                  <Trophy className="h-5 w-5 mr-2 text-yellow-500" /> Ranking de Ingresos Global
+              </h2>
+              <span className="text-xs font-bold text-slate-500 bg-white px-2 py-1 rounded border">
+                  {salesRanking.length} Máquinas
+              </span>
+          </div>
+          <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b border-slate-200">
+                      <tr>
+                          <th className="p-4 text-center w-16">#</th>
+                          <th className="p-4">Máquina</th>
+                          <th className="p-4 text-right">Ventas Totales</th>
+                          <th className="p-4 text-right hidden sm:table-cell">Último Reporte</th>
+                          <th className="p-4 text-center w-24">Acción</th>
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                      {salesRanking.map((item, index) => (
+                          <tr key={item.id} className={`hover:bg-slate-50 transition ${index === 0 ? 'bg-yellow-50/30' : ''}`}>
+                              <td className="p-4 text-center font-bold text-slate-400">
+                                  {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                              </td>
+                              <td className="p-4">
+                                  <div className="font-bold text-slate-800">{item.location}</div>
+                                  <div className="text-xs text-slate-500 font-mono">ID: {item.id}</div>
+                              </td>
+                              <td className="p-4 text-right">
+                                  <span className={`font-bold text-base ${item.total > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                      ${item.total.toLocaleString()}
+                                  </span>
+                              </td>
+                              <td className="p-4 text-right hidden sm:table-cell text-xs text-slate-500">
+                                  {item.lastReport ? format(new Date(item.lastReport), "dd MMM yyyy", { locale: es }) : 'Sin actividad'}
+                              </td>
+                              <td className="p-4 text-center">
+                                  <button 
+                                      onClick={() => {
+                                          setSelectedMachineId(item.id);
+                                          // Scroll suave hacia los gráficos
+                                          document.getElementById('analysis-section')?.scrollIntoView({ behavior: 'smooth' });
+                                      }}
+                                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                                  >
+                                      Analizar
+                                  </button>
+                              </td>
+                          </tr>
+                      ))}
+                      {salesRanking.length === 0 && (
+                          <tr>
+                              <td colSpan={5} className="p-8 text-center text-slate-400">
+                                  No hay datos de ventas registrados aún.
+                              </td>
+                          </tr>
+                      )}
+                  </tbody>
+              </table>
+          </div>
+      </div>
+
       {/* --- SECTION 2: MACHINE ANALYSIS & REPORT SELECTOR --- */}
-      <div className="space-y-4">
+      <div id="analysis-section" className="space-y-4 pt-4">
            {/* GLOBAL MACHINE SELECTOR BAR */}
            <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center">

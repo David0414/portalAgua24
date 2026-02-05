@@ -52,6 +52,7 @@ export interface Report {
   data: ChecklistValue[];
   adminComments?: string;
   type: 'weekly' | 'monthly' | 'special';
+  showInCondo?: boolean; // Nueva bandera de visibilidad
 }
 
 export interface Machine {

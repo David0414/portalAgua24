@@ -351,17 +351,26 @@ export const api = {
     }
   },
 
-  reviewReport: async (id: string, status: ReportStatus, comments?: string): Promise<Report> => {
+  reviewReport: async (id: string, status: ReportStatus, comments?: string, showInCondo?: boolean): Promise<Report> => {
     if (USE_SUPABASE) {
         const updates: any = { status, updatedAt: new Date().toISOString() };
         if (comments) updates.adminComments = comments;
+        if (showInCondo !== undefined) updates.showInCondo = showInCondo;
+
         const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select().single();
         if (error) throw error;
         return data as unknown as Report;
     } else {
         const db = getDb();
         const index = db.reports.findIndex((r: Report) => r.id === id);
-        const updatedReport = { ...db.reports[index], status, adminComments: comments || db.reports[index].adminComments, updatedAt: new Date().toISOString() };
+        const updatedReport = { 
+            ...db.reports[index], 
+            status, 
+            adminComments: comments || db.reports[index].adminComments,
+            updatedAt: new Date().toISOString()
+        };
+        if (showInCondo !== undefined) updatedReport.showInCondo = showInCondo;
+        
         db.reports[index] = updatedReport;
         saveDb(db);
         return updatedReport;
