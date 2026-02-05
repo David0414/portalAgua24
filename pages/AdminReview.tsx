@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight, Copy, Users, Phone } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight, Copy, Users, Phone, UserCheck, Send } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format, differenceInDays } from 'date-fns';
@@ -237,121 +237,120 @@ export const AdminReview: React.FC = () => {
     const isActuallyVisible = report.type !== 'special' ? true : showInCondo;
 
     return (
-      <div className="max-w-xl mx-auto mt-10 p-8 bg-white rounded-2xl shadow-xl text-center border-t-8 border-indigo-500 animate-in fade-in zoom-in duration-300">
-        <div className="flex justify-center mb-6">
-          <div className={`p-4 rounded-full ${outcome.status === ReportStatus.APPROVED ? 'bg-green-100' : 'bg-red-100'}`}>
+      <div className="max-w-xl mx-auto mt-8 p-6 bg-white rounded-2xl shadow-2xl text-center border-t-8 border-indigo-500 animate-in fade-in zoom-in duration-300">
+        
+        {/* HEADER DE ESTATUS */}
+        <div className="flex flex-col items-center mb-8">
+          <div className={`p-4 rounded-full mb-3 ${outcome.status === ReportStatus.APPROVED ? 'bg-green-100' : 'bg-red-100'}`}>
             {outcome.status === ReportStatus.APPROVED ? (
-              <Check className="h-16 w-16 text-green-600" />
+              <Check className="h-10 w-10 text-green-600" />
             ) : (
-              <X className="h-16 w-16 text-red-600" />
+              <X className="h-10 w-10 text-red-600" />
             )}
           </div>
+          <h2 className="text-2xl font-bold text-slate-900">
+            {outcome.status === ReportStatus.APPROVED ? 'Validación Completada' : 'Reporte Rechazado'}
+          </h2>
+          {outcome.status === ReportStatus.APPROVED && (
+              <p className="text-sm text-slate-500 mt-1">
+                 El PDF se ha descargado a tu dispositivo.
+              </p>
+          )}
         </div>
-        
-        <h2 className="text-3xl font-bold text-slate-900 mb-2">
-          {outcome.status === ReportStatus.APPROVED ? 'Reporte Aprobado' : 'Reporte Rechazado'}
-        </h2>
-        
-        {outcome.status === ReportStatus.APPROVED && (
-            <div className="bg-blue-50 text-blue-700 p-3 rounded-lg text-sm mb-4">
-                <p>📥 El PDF se ha descargado a tu dispositivo automáticamente.</p>
-            </div>
-        )}
 
-        <div className="space-y-4">
+        <div className="space-y-6 text-left">
             {outcome.status === ReportStatus.APPROVED ? (
                <>
                  {/* Step 1: Tech */}
-                <button
-                    onClick={sendTechWhatsApp}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition group"
-                >
-                    <div className="flex items-center">
-                        <div className="bg-brand-100 p-2 rounded-full mr-3">
-                             <MessageCircle className="h-5 w-5 text-brand-600" />
-                        </div>
-                        <div className="text-left">
-                            <span className="block font-bold text-slate-700">1. Avisar al Técnico</span>
+                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-bl-lg">PASO 1</div>
+                    <div className="flex items-start mb-3">
+                        <UserCheck className="h-6 w-6 text-blue-600 mr-3 mt-1" />
+                        <div>
+                            <h3 className="font-bold text-blue-900">Avisar al Técnico</h3>
+                            <p className="text-xs text-blue-700">Confirma a <span className="font-bold">{report.technicianName}</span> que el reporte fue aprobado.</p>
                         </div>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-slate-400" />
-                </button>
+                    <button
+                        onClick={sendTechWhatsApp}
+                        className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-bold transition shadow-sm"
+                    >
+                        <MessageCircle className="h-4 w-4" />
+                        <span>Enviar WhatsApp a Técnico</span>
+                    </button>
+                 </div>
                 
                 {/* Step 2: Condo - ONLY IF VISIBLE */}
                 {isActuallyVisible ? (
-                    <div className="border border-teal-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="bg-teal-50 p-3 text-left border-b border-teal-100 flex justify-between items-center">
+                    <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 bg-teal-200 text-teal-800 text-xs font-bold px-2 py-1 rounded-bl-lg">PASO 2</div>
+                        <div className="flex items-start mb-3">
+                            <Building className="h-6 w-6 text-teal-600 mr-3 mt-1" />
                             <div>
-                                <p className="text-xs font-bold text-teal-800 uppercase mb-1">Paso 2: Avisar al Condominio</p>
+                                <h3 className="font-bold text-teal-900">Entregar al Condominio</h3>
                                 {condoContact ? (
-                                    <p className="text-sm text-teal-700 font-medium flex items-center">
-                                        <Users className="h-3 w-3 mr-1" />
-                                        {condoContact.name}
+                                    <p className="text-xs text-teal-700">
+                                        Enviar reporte a: <span className="font-bold">{condoContact.name}</span>
                                     </p>
                                 ) : (
-                                    <p className="text-sm text-red-400">Sin contacto asignado</p>
+                                    <p className="text-xs text-red-500 font-bold">Sin administrador asignado</p>
                                 )}
                             </div>
-                            {condoContact?.phone && (
-                                <div className="text-xs text-teal-600 bg-white px-2 py-1 rounded border border-teal-100 flex items-center">
-                                    <Phone className="h-3 w-3 mr-1" />
-                                    {condoContact.phone}
-                                </div>
-                            )}
                         </div>
-                        
-                        <div className="flex divide-x divide-slate-100">
+
+                        <div className="grid grid-cols-2 gap-3">
                             {/* Option A: Direct Chat */}
                             <button
                                 onClick={sendCondoWhatsApp}
                                 disabled={!condoContact}
-                                className="flex-1 px-4 py-3 bg-white hover:bg-teal-50 transition flex flex-col items-center justify-center disabled:opacity-50"
+                                className="flex flex-col items-center justify-center p-3 bg-white border border-teal-200 rounded-lg hover:bg-teal-100 transition disabled:opacity-50"
                             >
-                                <div className="bg-teal-100 p-2 rounded-full mb-1">
-                                    <MessageCircle className="h-5 w-5 text-teal-700" />
-                                </div>
-                                <span className="text-xs font-bold text-slate-700">
-                                    {condoContact ? `Enviar a ${condoContact.name.split(' ')[0]}` : 'Chat Directo'}
-                                </span>
-                                <span className="text-[9px] text-slate-400">Mensaje Individual</span>
+                                <Send className="h-5 w-5 text-teal-600 mb-1" />
+                                <span className="text-xs font-bold text-teal-800">Enviar a Admin</span>
+                                <span className="text-[9px] text-slate-400">Mensaje Directo</span>
                             </button>
 
                             {/* Option B: Group Copy */}
                             <button
                                 onClick={handleCopyForGroup}
-                                className="flex-1 px-4 py-3 bg-white hover:bg-teal-50 transition flex flex-col items-center justify-center border-l border-slate-100"
+                                className="flex flex-col items-center justify-center p-3 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition"
                             >
-                                <div className="bg-indigo-100 p-2 rounded-full mb-1">
-                                    <Users className="h-5 w-5 text-indigo-700" />
-                                </div>
-                                <span className="text-xs font-bold text-slate-700">Copiar para Grupo</span>
-                                <span className="text-[9px] text-slate-400">Copiar y Abrir WA</span>
+                                <Copy className="h-5 w-5 text-indigo-600 mb-1" />
+                                <span className="text-xs font-bold text-indigo-800">Copiar Mensaje</span>
+                                <span className="text-[9px] text-slate-400">Para pegar en Grupo</span>
                             </button>
                         </div>
+                        <p className="text-[10px] text-teal-600 mt-2 text-center">
+                            * Recuerda adjuntar el PDF descargado en el chat.
+                        </p>
                     </div>
                 ) : (
-                    <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center justify-center text-amber-700 text-sm">
-                        <EyeOff className="h-4 w-4 mr-2" />
-                        <span>Reporte oculto para el condominio. No se requiere notificación.</span>
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 text-sm">
+                        <EyeOff className="h-5 w-5 mr-2" />
+                        <span>Este reporte es interno (Oculto al cliente).</span>
                     </div>
                 )}
                </>
             ) : (
-                 <button
-                    onClick={sendTechWhatsApp}
-                    className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-lg"
-                 >
-                    <AlertTriangle className="h-5 w-5" />
-                    <span>Enviar Correcciones al Técnico</span>
-                 </button>
+                 <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                     <h3 className="font-bold text-red-900 mb-2">Corrección Solicitada</h3>
+                     <p className="text-sm text-red-700 mb-4">Debes notificar al técnico sobre los cambios requeridos.</p>
+                     <button
+                        onClick={sendTechWhatsApp}
+                        className="w-full flex items-center justify-center space-x-2 bg-red-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-lg"
+                     >
+                        <AlertTriangle className="h-5 w-5" />
+                        <span>Enviar Correcciones</span>
+                     </button>
+                 </div>
             )}
         </div>
            
         <button
             onClick={goBackToDashboard}
-            className="w-full flex items-center justify-center space-x-2 text-slate-500 px-4 py-3 rounded-xl font-medium hover:bg-slate-50 transition mt-4"
+            className="w-full flex items-center justify-center space-x-2 text-slate-400 px-4 py-3 rounded-xl font-medium hover:text-slate-600 hover:bg-slate-50 transition mt-6"
         >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
             <span>Volver al Dashboard</span>
         </button>
       </div>
