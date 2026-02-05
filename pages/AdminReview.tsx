@@ -45,15 +45,28 @@ export const AdminReview: React.FC = () => {
         if (r) setShowInCondo(r.showInCondo !== false);
 
         if (r) {
-            // Fetch Machine Info & Condo Contact
+            // Fetch Machine Info
             const machine = await api.getMachine(r.machineId);
             setMachineInfo(machine || null);
             
-            if (machine && machine.assignedToUserId) {
-                const users = await api.getUsers();
-                const condoUser = users.find(u => u.id === machine.assignedToUserId);
-                setCondoContact(condoUser || null);
+            // CORRECCIÓN IMPORTANTE: Búsqueda robusta del Administrador del Condominio
+            const users = await api.getUsers();
+            
+            // 1. Buscar usuario con rol CONDO_ADMIN asignado a esta máquina
+            let condoUser = users.find(u => 
+                u.role === Role.CONDO_ADMIN && 
+                u.assignedMachineId === r.machineId
+            );
+
+            // 2. Si no se encuentra por asignación directa, intentar por la referencia en la máquina (siempre verificando el rol)
+            if (!condoUser && machine?.assignedToUserId) {
+                 condoUser = users.find(u => 
+                     u.id === machine.assignedToUserId && 
+                     u.role === Role.CONDO_ADMIN
+                 );
             }
+
+            setCondoContact(condoUser || null);
         }
       }
     };
