@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Calendar, MapPin, CheckCircle } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { QrCode, ArrowRight, Loader2, Camera, X, AlertTriangle, Calendar, MapPin, CheckCircle, FileText, AlertOctagon } from 'lucide-react';
 import { api } from '../services/db';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '../contexts/AuthContext';
-import { Visit } from '../types';
+import { Visit, Report, ReportStatus } from '../types';
 import { format, isToday, isTomorrow, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -18,6 +18,8 @@ export const TechScan: React.FC = () => {
   
   // Schedule State
   const [myVisits, setMyVisits] = useState<Visit[]>([]);
+  // Rejected Reports State
+  const [rejectedReports, setRejectedReports] = useState<Report[]>([]);
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -29,9 +31,8 @@ export const TechScan: React.FC = () => {
 
   // Auto-start scanning on mount for "Arrive & Scan" feel
   useEffect(() => {
-    // Load Schedule
     if (user) {
-        loadSchedule();
+        loadData();
     }
 
     // Check if we can auto-start
@@ -45,13 +46,20 @@ export const TechScan: React.FC = () => {
     };
   }, [user]);
 
-  const loadSchedule = async () => {
+  const loadData = async () => {
       if(!user) return;
-      // Fetch visits for this technician ID
+      
+      // 1. Fetch Visits (Schedule)
       const visits = await api.getVisitsByTechnician(user.id);
-      // Filter only future or today
       const upcoming = visits.filter(v => !isPast(parseDate(v.date)) || isToday(parseDate(v.date)));
       setMyVisits(upcoming);
+
+      // 2. Fetch Rejected Reports (Corrections)
+      if (user.phone) {
+          const reports = await api.getReportsByTechnician(user.phone);
+          const rejected = reports.filter(r => r.status === ReportStatus.REJECTED);
+          setRejectedReports(rejected);
+      }
   };
 
   const startScanning = async () => {
@@ -137,8 +145,49 @@ export const TechScan: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto space-y-8 pb-20">
+    <div className="max-w-md mx-auto space-y-6 pb-20">
       
+      {/* SECTION 0: CORRECCIONES PENDIENTES (NUEVO) */}
+      {rejectedReports.length > 0 && (
+          <section className="bg-red-50 border border-red-200 rounded-2xl overflow-hidden shadow-sm animate-pulse-slow">
+              <div className="p-4 bg-red-100/50 border-b border-red-200 flex justify-between items-center">
+                  <h3 className="font-bold text-red-800 flex items-center">
+                      <AlertTriangle className="h-5 w-5 mr-2" /> Correcciones Pendientes
+                  </h3>
+                  <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full font-bold">
+                      {rejectedReports.length}
+                  </span>
+              </div>
+              <div className="divide-y divide-red-100">
+                  {rejectedReports.map(report => (
+                      <Link 
+                        key={report.id}
+                        to={`/tech/form/${report.machineId}?reportId=${report.id}`}
+                        className="p-4 flex items-center justify-between hover:bg-red-100 transition group"
+                      >
+                          <div>
+                              <div className="flex items-center space-x-2 mb-1">
+                                  <span className="font-bold text-slate-800">{report.machineId}</span>
+                                  <span className="text-[10px] uppercase font-bold bg-white border border-red-200 text-red-600 px-1.5 rounded">
+                                      Rechazado
+                                  </span>
+                              </div>
+                              <p className="text-xs text-red-700 italic line-clamp-1">
+                                  "{report.adminComments || 'Sin comentarios'}"
+                              </p>
+                              <p className="text-[10px] text-slate-500 mt-1">
+                                  {format(new Date(report.createdAt), "dd MMM, HH:mm", {locale: es})}
+                              </p>
+                          </div>
+                          <div className="bg-white p-2 rounded-full border border-red-200 text-red-600 group-hover:bg-red-600 group-hover:text-white transition">
+                              <ArrowRight className="h-4 w-4" />
+                          </div>
+                      </Link>
+                  ))}
+              </div>
+          </section>
+      )}
+
       {/* SECTION 1: SCANNER */}
       <section>
           {!scanning && (

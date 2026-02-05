@@ -43,3 +43,14 @@ declare module 'html5-qrcode' {
         UPC_EAN_EXTENSION = 16,
     }
 }
+
+declare module 'react-router-dom' {
+    export const HashRouter: any;
+    export const Routes: any;
+    export const Route: any;
+    export const Navigate: any;
+    export const Link: any;
+    export function useLocation(): any;
+    export function useNavigate(): any;
+    export function useParams<T = any>(): T;
+}

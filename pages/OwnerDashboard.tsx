@@ -3,7 +3,7 @@ import { api } from '../services/db';
 import { Report, ReportStatus, Machine, User } from '../types';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, Brush } from 'recharts';
-import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar, FileText, AlertOctagon, Download, FileStack, Trophy } from 'lucide-react';
+import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar, FileText, AlertOctagon, Download, FileStack, Trophy, Eye, EyeOff } from 'lucide-react';
 import { format, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PRODUCTION_URL } from '../services/whatsapp';
@@ -584,6 +584,17 @@ export const OwnerDashboard: React.FC = () => {
                                     {report.type === 'weekly' ? 'Semanal' : 
                                      report.type === 'monthly' ? 'Mensual' : 'Especial'}
                                 </span>
+                                
+                                {report.type === 'special' && (
+                                   <div className="flex items-center ml-1 text-slate-400" title={report.showInCondo ? "Visible en Condominio" : "Oculto en Condominio"}>
+                                       {report.showInCondo ? (
+                                           <Eye className="h-3 w-3 text-teal-500" />
+                                       ) : (
+                                           <EyeOff className="h-3 w-3 text-slate-400" />
+                                       )}
+                                   </div>
+                                )}
+
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
                                     report.status === ReportStatus.PENDING ? 'bg-amber-100 text-amber-700' :
                                     report.status === ReportStatus.APPROVED ? 'bg-green-100 text-green-700' :

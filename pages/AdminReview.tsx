@@ -102,9 +102,15 @@ export const AdminReview: React.FC = () => {
         status: ReportStatus.APPROVED,
         message: msgTech
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error approving:", error);
-      alert("Hubo un error al aprobar el reporte.");
+      
+      // Manejo de error específico de columna faltante en Supabase
+      if (error?.message?.includes('showInCondo') || error?.details?.includes('showInCondo') || error?.code === 'PGRST204') {
+          alert("⚠️ ERROR DE CONFIGURACIÓN DE BASE DE DATOS\n\nLa base de datos no tiene la columna 'showInCondo' necesaria para guardar la visibilidad.\n\nSOLUCIÓN: Ve al SQL Editor en Supabase y ejecuta el contenido del archivo 'FIX_SCHEMA.sql'.");
+      } else {
+          alert("Hubo un error al aprobar el reporte: " + (error.message || "Error desconocido"));
+      }
     } finally {
       setLoadingAction(false);
     }
