@@ -1,4 +1,3 @@
-
 import { ChecklistItemDefinition } from './types';
 
 export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
@@ -7,7 +6,7 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
   { id: 'w2', label: 'Sanitización interna de ventana', type: 'boolean', required: true, section: 'weekly', reference: 'Desinfectado' },
   { id: 'w3', label: 'Limpieza general interior (Filtros, tuberías)', type: 'boolean', required: true, section: 'weekly', reference: 'Sin Fugas/Suciedad' },
   
-  // --- Prueba Sensorial (NUEVO) ---
+  // --- Prueba Sensorial (NUEVO - Check) ---
   { id: 'w_taste', label: 'Probar agua (Sabor)', type: 'boolean', required: true, section: 'weekly', reference: 'Sin sabor extraño' },
   
   // --- Calidad de Agua (Lecturas Únicas) ---
@@ -23,6 +22,8 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
   { id: 'w_capping', label: 'Llenado de tapitas', type: 'boolean', required: true, section: 'weekly', reference: 'Lleno' },
 
   // --- Dinero y Ventas (PRIVADO) ---
+  // NOTA: Se eliminó 'Acomodo de monedas en Hopper' (w14)
+  
   { id: 'w_exchange', label: 'Cambio ingresado (Monedas $1)', type: 'number', required: true, section: 'weekly', reference: 'Opcional', unit: 'MXN', private: true },
   
   // Ventas totales (Dinero)
@@ -40,7 +41,7 @@ export const MONTHLY_CHECKLIST: ChecklistItemDefinition[] = [
   // --- Items Mensuales ---
   { id: 'm1', label: 'Revisión de sticker exterior', type: 'boolean', required: true, section: 'monthly', reference: 'Intacto' },
   
-  // --- Pruebas de Laboratorio (Consolidado) ---
+  // --- Pruebas de Laboratorio (Consolidado: Color, Turbiedad, Coliformes en UN solo check) ---
   { id: 'm_lab_tests', label: 'Foto 3 pruebas (Color, Turbiedad, Coliformes)', type: 'boolean', required: true, section: 'monthly', reference: 'Pruebas OK' },
 
   { id: 'm5', label: 'Revisión auditiva de bombas', type: 'boolean', required: true, section: 'monthly', reference: 'Sin ruidos extraños' },

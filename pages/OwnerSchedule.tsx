@@ -3,7 +3,7 @@ import { api } from '../services/db';
 import { Machine, User, Visit, Role } from '../types';
 import { ArrowLeft, Calendar, Plus, Trash2, MapPin, User as UserIcon, AlertCircle, RefreshCw, CalendarDays, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format, parseISO, isPast, isToday, isTomorrow, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay } from 'date-fns';
+import { format, isPast, isToday, isTomorrow, addDays, endOfMonth, eachDayOfInterval, isSameDay, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export const OwnerSchedule: React.FC = () => {
@@ -24,6 +24,12 @@ export const OwnerSchedule: React.FC = () => {
   // Bulk Generator State
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [bulkDayOfWeek, setBulkDayOfWeek] = useState<number>(1); // 1 = Lunes
+
+  // Parse Date Helper
+  const parseDate = (dateStr: string) => {
+    if (dateStr.includes('T')) return new Date(dateStr);
+    return new Date(`${dateStr}T00:00:00`);
+  };
 
   useEffect(() => {
     loadData();
@@ -103,7 +109,9 @@ export const OwnerSchedule: React.FC = () => {
       if (!selectedMachineId || !assignedTech) return;
 
       const now = new Date();
-      const start = startOfMonth(now);
+      // Native startOfMonth
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      // We can use endOfMonth from date-fns or native
       const end = endOfMonth(now);
       
       const days = eachDayOfInterval({ start, end });
@@ -139,8 +147,8 @@ export const OwnerSchedule: React.FC = () => {
     .filter(v => v.machineId === selectedMachineId)
     .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const upcomingVisits = machineVisits.filter(v => !isPast(parseISO(v.date)) || isToday(parseISO(v.date)));
-  const pastVisits = machineVisits.filter(v => isPast(parseISO(v.date)) && !isToday(parseISO(v.date)));
+  const upcomingVisits = machineVisits.filter(v => !isPast(parseDate(v.date)) || isToday(parseDate(v.date)));
+  const pastVisits = machineVisits.filter(v => isPast(parseDate(v.date)) && !isToday(parseDate(v.date)));
 
   const techs = users.filter(u => u.role === Role.TECHNICIAN);
 
@@ -306,12 +314,12 @@ export const OwnerSchedule: React.FC = () => {
                              <div key={v.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition group border-l-4 border-l-green-500">
                                  <div className="flex items-center space-x-4">
                                      <div className="text-center">
-                                         <p className="text-xs font-bold text-slate-500 uppercase">{format(parseISO(v.date), 'MMM', {locale: es})}</p>
-                                         <p className="text-xl font-bold text-slate-800">{format(parseISO(v.date), 'dd')}</p>
+                                         <p className="text-xs font-bold text-slate-500 uppercase">{format(parseDate(v.date), 'MMM', {locale: es})}</p>
+                                         <p className="text-xl font-bold text-slate-800">{format(parseDate(v.date), 'dd')}</p>
                                      </div>
                                      <div>
                                          <p className="font-bold text-slate-800 flex items-center">
-                                             {format(parseISO(v.date), "EEEE", {locale: es})}
+                                             {format(parseDate(v.date), "EEEE", {locale: es})}
                                              {v.type === 'monthly' && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-2 rounded-full border border-purple-200">MENSUAL</span>}
                                          </p>
                                          <div className="flex items-center text-xs text-slate-500 mt-1">
@@ -341,7 +349,7 @@ export const OwnerSchedule: React.FC = () => {
                              <div key={v.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg opacity-60">
                                  <div className="flex items-center space-x-4">
                                      <div className="text-center min-w-[30px]">
-                                         <p className="text-sm font-bold text-slate-500">{format(parseISO(v.date), 'dd/MM')}</p>
+                                         <p className="text-sm font-bold text-slate-500">{format(parseDate(v.date), 'dd/MM')}</p>
                                      </div>
                                      <div>
                                          <p className="text-sm font-medium text-slate-700">

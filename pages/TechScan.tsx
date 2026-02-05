@@ -5,7 +5,7 @@ import { api } from '../services/db';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useAuth } from '../contexts/AuthContext';
 import { Visit } from '../types';
-import { format, parseISO, isToday, isTomorrow, isPast } from 'date-fns';
+import { format, isToday, isTomorrow, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export const TechScan: React.FC = () => {
@@ -20,6 +20,12 @@ export const TechScan: React.FC = () => {
   const [myVisits, setMyVisits] = useState<Visit[]>([]);
   
   const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  // Helper to parse YYYY-MM-DD to Date object
+  const parseDate = (dateStr: string) => {
+    if (dateStr.includes('T')) return new Date(dateStr);
+    return new Date(`${dateStr}T00:00:00`);
+  };
 
   // Auto-start scanning on mount for "Arrive & Scan" feel
   useEffect(() => {
@@ -44,7 +50,7 @@ export const TechScan: React.FC = () => {
       // Fetch visits for this technician ID
       const visits = await api.getVisitsByTechnician(user.id);
       // Filter only future or today
-      const upcoming = visits.filter(v => !isPast(parseISO(v.date)) || isToday(parseISO(v.date)));
+      const upcoming = visits.filter(v => !isPast(parseDate(v.date)) || isToday(parseDate(v.date)));
       setMyVisits(upcoming);
   };
 
@@ -221,7 +227,7 @@ export const TechScan: React.FC = () => {
                   </div>
               ) : (
                   myVisits.map(visit => {
-                      const dateObj = parseISO(visit.date);
+                      const dateObj = parseDate(visit.date);
                       let dateLabel = format(dateObj, "dd MMM", { locale: es });
                       let statusColor = "bg-slate-100 text-slate-500";
                       

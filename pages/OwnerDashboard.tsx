@@ -4,7 +4,7 @@ import { Report, ReportStatus, Machine, User } from '../types';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, Brush } from 'recharts';
 import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar, FileText, AlertOctagon, Download, FileStack } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, isWithinInterval, subWeeks, subMonths, getWeek, isAfter, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
@@ -124,6 +124,13 @@ export const OwnerDashboard: React.FC = () => {
           // Just take the single most recent one
           filteredReports = filteredReports.slice(0, 1);
       } else {
+          // Native subMonths implementation
+          const subMonths = (date: Date, amount: number) => {
+              const d = new Date(date);
+              d.setMonth(d.getMonth() - amount);
+              return d;
+          };
+
           let cutoffDate = new Date();
           if (timeRange === '1m') cutoffDate = subMonths(now, 1);
           if (timeRange === '3m') cutoffDate = subMonths(now, 3);

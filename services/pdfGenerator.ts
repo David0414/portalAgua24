@@ -199,10 +199,10 @@ const addReportToDoc = (doc: jsPDF, report: Report, locationName: string) => {
               }
           };
 
-          drawGauge("pH (Potencial de Hidrógeno)", ph, "pH", 15, currentY + 5, 6.5, 8.5, 14);
-          drawGauge("TDS (Sólidos Disueltos Totales)", tds, "ppm", 110, currentY + 5, 50, 300, 400); 
-          drawGauge("Cloro (Cloro Libre)", cl, "mg/L", 15, currentY + 25, 0.2, 1.5, 3);
-          drawGauge("Dureza (Dureza Total)", hard, "mg/L", 110, currentY + 25, undefined, 200, 300);
+          drawGauge("pH (Acidez)", ph, "pH", 15, currentY + 5, 6.5, 8.5, 14);
+          drawGauge("TDS (Sólidos)", tds, "ppm", 110, currentY + 5, 50, 300, 400); 
+          drawGauge("Cloro Libre", cl, "mg/L", 15, currentY + 25, 0.2, 1.5, 3);
+          drawGauge("Dureza", hard, "mg/L", 110, currentY + 25, undefined, 200, 300);
 
           currentY += 45; 
       }
@@ -290,31 +290,4 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
   doc.save(`Reporte_${report.type}_${report.machineId}_${format(new Date(), 'yyyyMMdd')}.pdf`);
 };
 
-// --- FUNCIÓN PÚBLICA: Generar PDF Mensual con Anexos Semanales (BUNDLE) ---
-export const generateMonthlyBundlePDF = (monthlyReport: Report, weeklyReports: Report[], locationName: string) => {
-  const doc = new jsPDF();
-
-  // 1. Añadir el Reporte Mensual (Portada principal)
-  addReportToDoc(doc, monthlyReport, locationName);
-
-  // 2. Iterar y añadir los reportes semanales
-  // Ordenar de más antiguo a más reciente para cronología lógica
-  const sortedWeeklies = [...weeklyReports].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-  sortedWeeklies.forEach((weeklyReport) => {
-      doc.addPage();
-      addReportToDoc(doc, weeklyReport, locationName);
-  });
-
-  // Footer Global (re-calculado para todo el documento unido)
-  const pageCount = (doc as any).internal.getNumberOfPages();
-  for(let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`Reporte Integral Mensual - Pág ${i} de ${pageCount}`, 105, 290, { align: 'center' });
-  }
-
-  const filename = `Mensual_Integral_${monthlyReport.machineId}_${format(new Date(monthlyReport.createdAt), 'MM_yyyy')}.pdf`;
-  doc.save(filename);
-};
+// NOTA: Se eliminó generateMonthlyBundlePDF para asegurar que solo se descarguen reportes individuales.

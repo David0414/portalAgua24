@@ -3,7 +3,7 @@ import { api } from '../services/db';
 import { Report, ReportStatus, Machine, Visit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight, FileStack, User } from 'lucide-react';
-import { format, differenceInDays, subMonths, isAfter, parseISO, isPast, isToday, isTomorrow, addDays, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, differenceInDays, isAfter, isPast, isToday, isTomorrow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar, Brush } from 'recharts';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
@@ -163,6 +163,12 @@ export const CondoDashboard: React.FC = () => {
   // State for Full Screen Chart
   const [expandedChart, setExpandedChart] = useState<any | null>(null);
 
+  // Parse Date Helper
+  const parseDate = (dateStr: string) => {
+      if (dateStr.includes('T')) return new Date(dateStr);
+      return new Date(`${dateStr}T00:00:00`);
+  };
+
   useEffect(() => {
     const fetch = async () => {
       const dbUsers = await api.getUsers();
@@ -182,7 +188,7 @@ export const CondoDashboard: React.FC = () => {
       // Fetch visits
       const visits = await api.getVisitsByMachine(machineId);
       // Find first future visit
-      const next = visits.find(v => !isPast(parseISO(v.date)) || isToday(parseISO(v.date)));
+      const next = visits.find(v => !isPast(parseDate(v.date)) || isToday(parseDate(v.date)));
       setUpcomingVisit(next || null);
 
       const machineReports = await api.getReportsByMachine(machineId, 50);
@@ -210,6 +216,13 @@ export const CondoDashboard: React.FC = () => {
       if (timeRange === 'latest') {
           filteredReports = filteredReports.slice(0, 1);
       } else {
+          // Native subMonths
+          const subMonths = (date: Date, amount: number) => {
+            const d = new Date(date);
+            d.setMonth(d.getMonth() - amount);
+            return d;
+          };
+
           let cutoffDate = new Date();
           if (timeRange === '1m') cutoffDate = subMonths(now, 1);
           if (timeRange === '3m') cutoffDate = subMonths(now, 3);
@@ -262,7 +275,7 @@ export const CondoDashboard: React.FC = () => {
   const getNextVisitDisplay = () => {
       if (!upcomingVisit) return null;
       
-      const date = parseISO(upcomingVisit.date);
+      const date = parseDate(upcomingVisit.date);
       const isLate = isPast(date) && !isToday(date);
       
       let label = format(date, "EEEE d 'de' MMMM", { locale: es });
