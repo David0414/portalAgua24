@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format, differenceInDays } from 'date-fns';
@@ -25,8 +25,8 @@ export const AdminReview: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   
-  // Image Preview State
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  // GALLERY STATE
+  const [gallery, setGallery] = useState<{ images: string[], index: number } | null>(null);
   
   // Success State
   const [outcome, setOutcome] = useState<{
@@ -62,6 +62,21 @@ export const AdminReview: React.FC = () => {
 
   const isImageExpired = (reportDate: string) => {
     return differenceInDays(new Date(), new Date(reportDate)) > 60;
+  };
+
+  // Gallery Navigation Handlers
+  const handleNextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (gallery && gallery.index < gallery.images.length - 1) {
+          setGallery({ ...gallery, index: gallery.index + 1 });
+      }
+  };
+
+  const handlePrevImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (gallery && gallery.index > 0) {
+          setGallery({ ...gallery, index: gallery.index - 1 });
+      }
   };
 
   if (!report) return <div className="p-8 text-center flex justify-center"><Loader2 className="animate-spin text-brand-600" /></div>;
@@ -365,7 +380,7 @@ export const AdminReview: React.FC = () => {
                                                     src={url} 
                                                     alt={`Evidencia ${idx}`} 
                                                     className="h-32 object-cover rounded-lg border border-slate-300 cursor-pointer shadow-sm hover:opacity-90 transition"
-                                                    onClick={() => setPreviewImage(url)}
+                                                    onClick={() => setGallery({ images: photos, index: idx })}
                                                 />
                                             </div>
                                         ))}
@@ -434,12 +449,17 @@ export const AdminReview: React.FC = () => {
                                                                 src={url} 
                                                                 alt="Evidencia" 
                                                                 className="h-10 w-10 object-cover rounded border border-slate-300 cursor-pointer shadow-sm hover:opacity-80 transition z-10 relative bg-white"
-                                                                onClick={() => setPreviewImage(url)}
+                                                                onClick={() => setGallery({ images: photos, index: i })}
                                                             />
                                                         </div>
                                                     ))}
                                                     {photos.length > 2 && (
-                                                        <span className="text-xs text-slate-400 flex items-center">+{photos.length - 2}</span>
+                                                        <button 
+                                                            className="flex items-center justify-center h-10 w-10 bg-slate-100 border border-slate-300 rounded text-xs text-slate-500 font-bold hover:bg-slate-200 transition"
+                                                            onClick={() => setGallery({ images: photos, index: 0 })}
+                                                        >
+                                                            +{photos.length - 2}
+                                                        </button>
                                                     )}
                                                 </div>
                                             ) : (
@@ -580,26 +600,54 @@ export const AdminReview: React.FC = () => {
         </div>
       )}
 
-      {/* FULL SCREEN IMAGE PREVIEW MODAL */}
-      {previewImage && (
+      {/* GALLERY MODAL (CAROUSEL) */}
+      {gallery && (
         <div 
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => setPreviewImage(null)}
+            onClick={() => setGallery(null)}
         >
-            <div className="relative w-full h-full flex items-center justify-center p-4">
-                <img 
-                    src={previewImage} 
-                    alt="Evidencia Ampliada" 
-                    className="max-w-full max-h-full object-contain rounded shadow-2xl animate-in zoom-in-50 duration-300" 
-                    onClick={(e) => e.stopPropagation()} 
-                />
+            <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
                 
+                {/* Close Button */}
                 <button 
-                    onClick={() => setPreviewImage(null)}
-                    className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md transition"
+                    onClick={() => setGallery(null)}
+                    className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md transition z-20"
                 >
                     <X className="h-6 w-6" />
                 </button>
+
+                {/* Left Arrow */}
+                {gallery.index > 0 && (
+                    <button
+                        onClick={handlePrevImage}
+                        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition z-20"
+                    >
+                        <ChevronLeft className="h-8 w-8" />
+                    </button>
+                )}
+
+                {/* Main Image */}
+                <img 
+                    src={gallery.images[gallery.index]} 
+                    alt={`Evidencia ${gallery.index + 1}`} 
+                    className="max-w-full max-h-[85vh] object-contain rounded shadow-2xl animate-in zoom-in-50 duration-300" 
+                    onClick={(e) => e.stopPropagation()} 
+                />
+
+                {/* Right Arrow */}
+                {gallery.index < gallery.images.length - 1 && (
+                    <button
+                        onClick={handleNextImage}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition z-20"
+                    >
+                        <ChevronRight className="h-8 w-8" />
+                    </button>
+                )}
+
+                {/* Indicator */}
+                <div className="absolute bottom-6 bg-black/60 px-4 py-2 rounded-full text-white text-sm font-medium backdrop-blur-md">
+                    Imagen {gallery.index + 1} de {gallery.images.length}
+                </div>
             </div>
         </div>
       )}

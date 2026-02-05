@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/db';
 import { Report, ReportStatus, Machine, Visit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight, FileStack, User } from 'lucide-react';
+import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight, FileStack, User, ChevronLeft } from 'lucide-react';
 import { format, differenceInDays, isAfter, isPast, isToday, isTomorrow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar, Brush } from 'recharts';
@@ -17,13 +17,17 @@ const getCondoTableData = (report: Report | null) => {
     // For Special reports, we manually construct the display data
     if (report.type === 'special') {
          const dataItem = report.data.find(d => d.itemId === 's_notes');
+         const photos = dataItem?.photos && dataItem.photos.length > 0 
+                        ? dataItem.photos 
+                        : (dataItem?.photoUrl ? [dataItem.photoUrl] : []);
+                        
          return [{
              label: 'Descripción de Evento',
              reference: 'N/A',
              unit: '',
              type: 'text',
              value: dataItem?.value,
-             photoUrl: dataItem?.photoUrl 
+             photos: photos
          }];
     }
 
@@ -36,13 +40,17 @@ const getCondoTableData = (report: Report | null) => {
       .filter(item => !item.private)
       .map(item => {
           const dataItem = report.data.find(d => d.itemId === item.id);
+          const photos = dataItem?.photos && dataItem.photos.length > 0 
+                        ? dataItem.photos 
+                        : (dataItem?.photoUrl ? [dataItem.photoUrl] : []);
+
           return {
               label: item.label,
               reference: item.reference,
               unit: item.unit,
               type: item.type,
               value: dataItem?.value,
-              photoUrl: dataItem?.photoUrl
+              photos: photos
           };
       });
 };
@@ -157,8 +165,9 @@ export const CondoDashboard: React.FC = () => {
 
   // State for Report Details Modal
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  // State for Image Preview Modal
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  
+  // GALLERY STATE (Replaces simple previewImage)
+  const [gallery, setGallery] = useState<{ images: string[], index: number } | null>(null);
   
   // State for Full Screen Chart
   const [expandedChart, setExpandedChart] = useState<any | null>(null);
@@ -211,6 +220,21 @@ export const CondoDashboard: React.FC = () => {
     
     if(user) fetch();
   }, [user]);
+
+  // Gallery Navigation Handlers
+  const handleNextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (gallery && gallery.index < gallery.images.length - 1) {
+          setGallery({ ...gallery, index: gallery.index + 1 });
+      }
+  };
+
+  const handlePrevImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (gallery && gallery.index > 0) {
+          setGallery({ ...gallery, index: gallery.index - 1 });
+      }
+  };
 
   // --- CHART DATA PREPARATION WITH TIME FILTER ---
   const chartData = useMemo(() => {
@@ -509,17 +533,26 @@ export const CondoDashboard: React.FC = () => {
                                         EXPIRADO
                                     </span>
                                 ) : (
-                                    row.photoUrl ? (
-                                        <div className="relative group inline-block">
-                                            <img 
-                                                src={row.photoUrl} 
-                                                alt="Evidencia"
-                                                className="h-10 w-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition shadow-sm"
-                                                onClick={() => setPreviewImage(row.photoUrl || null)}
-                                            />
-                                            <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow border border-slate-100 pointer-events-none">
-                                                <ZoomIn className="h-3 w-3 text-teal-600" />
+                                    row.photos && row.photos.length > 0 ? (
+                                        <div className="flex justify-center gap-1">
+                                            {/* Show first photo */}
+                                            <div className="relative group inline-block">
+                                                <img 
+                                                    src={row.photos[0]} 
+                                                    alt="Evidencia"
+                                                    className="h-10 w-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:scale-110 transition shadow-sm"
+                                                    onClick={() => setGallery({ images: row.photos!, index: 0 })}
+                                                />
                                             </div>
+                                            {/* Indicator for more */}
+                                            {row.photos.length > 1 && (
+                                                <div 
+                                                    className="h-10 w-6 flex items-center justify-center bg-slate-100 rounded text-[10px] font-bold text-slate-500 cursor-pointer hover:bg-slate-200"
+                                                    onClick={() => setGallery({ images: row.photos!, index: 0 })}
+                                                >
+                                                    +{row.photos.length - 1}
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <span className="text-slate-300 text-xs">-</span>
@@ -586,7 +619,7 @@ export const CondoDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* REPORT DETAIL MODAL & PREVIEW MODAL (Same as before) */}
+      {/* REPORT DETAIL MODAL & PREVIEW MODAL */}
       {selectedReport && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
@@ -614,15 +647,20 @@ export const CondoDashboard: React.FC = () => {
                                         {row.value}
                                     </p>
                                     
-                                    {row.photoUrl && !isImageExpired(selectedReport.createdAt) && (
+                                    {row.photos && row.photos.length > 0 && !isImageExpired(selectedReport.createdAt) && (
                                         <div className="mt-4">
-                                            <h5 className="text-xs font-bold text-slate-400 uppercase mb-2">Evidencia</h5>
-                                            <img 
-                                                src={row.photoUrl} 
-                                                alt="Evidencia" 
-                                                className="w-full max-h-60 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
-                                                onClick={() => setPreviewImage(row.photoUrl || null)}
-                                            />
+                                            <h5 className="text-xs font-bold text-slate-400 uppercase mb-2">Evidencia ({row.photos.length})</h5>
+                                            <div className="flex flex-wrap gap-2">
+                                                {row.photos.map((url, pIdx) => (
+                                                    <img 
+                                                        key={pIdx}
+                                                        src={url} 
+                                                        alt="Evidencia" 
+                                                        className="w-24 h-24 object-cover rounded-lg cursor-pointer hover:opacity-90 transition border border-slate-200"
+                                                        onClick={() => setGallery({ images: row.photos!, index: pIdx })}
+                                                    />
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -657,14 +695,25 @@ export const CondoDashboard: React.FC = () => {
                                                 EXPIRADO
                                             </span>
                                         ) : (
-                                            row.photoUrl ? (
-                                                <div className="relative group inline-block">
-                                                    <img 
-                                                        src={row.photoUrl} 
-                                                        alt="Evidencia"
-                                                        className="h-12 w-12 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80 transition"
-                                                        onClick={() => setPreviewImage(row.photoUrl || null)}
-                                                    />
+                                            row.photos && row.photos.length > 0 ? (
+                                                <div className="flex justify-center gap-1">
+                                                    {/* Thumbnail 1 */}
+                                                    <div className="relative group inline-block">
+                                                        <img 
+                                                            src={row.photos[0]} 
+                                                            alt="Evidencia"
+                                                            className="h-10 w-10 object-cover rounded-lg border border-slate-200 cursor-pointer hover:opacity-80 transition"
+                                                            onClick={() => setGallery({ images: row.photos!, index: 0 })}
+                                                        />
+                                                    </div>
+                                                    {row.photos.length > 1 && (
+                                                        <button 
+                                                            className="h-10 w-8 bg-slate-100 text-slate-500 text-[10px] font-bold rounded flex items-center justify-center hover:bg-slate-200"
+                                                            onClick={() => setGallery({ images: row.photos!, index: 0 })}
+                                                        >
+                                                            +{row.photos.length - 1}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <span className="text-slate-300 text-xs">-</span>
@@ -693,26 +742,54 @@ export const CondoDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* FULL SCREEN IMAGE PREVIEW MODAL */}
-      {previewImage && (
+      {/* GALLERY MODAL (CAROUSEL) */}
+      {gallery && (
         <div 
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => setPreviewImage(null)}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setGallery(null)}
         >
-            <div className="relative w-full h-full flex items-center justify-center p-4">
-                <img 
-                    src={previewImage} 
-                    alt="Evidencia Ampliada" 
-                    className="max-w-full max-h-full object-contain rounded shadow-2xl animate-in zoom-in-50 duration-300" 
-                    onClick={(e) => e.stopPropagation()} 
-                />
+            <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
                 
+                {/* Close Button */}
                 <button 
-                    onClick={() => setPreviewImage(null)}
-                    className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md transition"
+                    onClick={() => setGallery(null)}
+                    className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md transition z-20"
                 >
                     <X className="h-6 w-6" />
                 </button>
+
+                {/* Left Arrow */}
+                {gallery.index > 0 && (
+                    <button
+                        onClick={handlePrevImage}
+                        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition z-20"
+                    >
+                        <ChevronLeft className="h-8 w-8" />
+                    </button>
+                )}
+
+                {/* Main Image */}
+                <img 
+                    src={gallery.images[gallery.index]} 
+                    alt={`Evidencia ${gallery.index + 1}`} 
+                    className="max-w-full max-h-[85vh] object-contain rounded shadow-2xl animate-in zoom-in-50 duration-300" 
+                    onClick={(e) => e.stopPropagation()} 
+                />
+
+                {/* Right Arrow */}
+                {gallery.index < gallery.images.length - 1 && (
+                    <button
+                        onClick={handleNextImage}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition z-20"
+                    >
+                        <ChevronRight className="h-8 w-8" />
+                    </button>
+                )}
+
+                {/* Indicator */}
+                <div className="absolute bottom-6 bg-black/60 px-4 py-2 rounded-full text-white text-sm font-medium backdrop-blur-md">
+                    Imagen {gallery.index + 1} de {gallery.images.length}
+                </div>
             </div>
         </div>
       )}
