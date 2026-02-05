@@ -1,4 +1,4 @@
-import { Report, ReportStatus, Machine, User, Role } from '../types';
+import { Report, ReportStatus, Machine, User, Role, Visit } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase, USE_SUPABASE } from './supabaseClient';
 
@@ -10,52 +10,41 @@ const STORAGE_KEY = 'aquacheck_db_v3';
 const getDb = () => {
   const data = localStorage.getItem(STORAGE_KEY);
   if (data) return JSON.parse(data);
-  return { reports: [], machines: [], users: [] };
+  return { reports: [], machines: [], users: [], visits: [] };
 };
 
 const saveDb = (data: any) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
 
-if (!USE_SUPABASE) getDb();
+if (!USE_SUPABASE) {
+    // Inicializar visits si no existe en mock antiguo
+    const db = getDb();
+    if (!db.visits) {
+        db.visits = [];
+        saveDb(db);
+    }
+}
 
 // ==========================================
 // UNIFIED API SERVICE
 // ==========================================
 
 export const api = {
-  // --- Auth Methods (MODO "SOLO DB") ---
-  
+  // --- Auth Methods ---
   login: async (identifier: string, password: string): Promise<User | null> => {
     if (USE_SUPABASE) {
         try {
             let email = identifier.trim();
-            if (!email.includes('@')) {
-                // Buscamos por el nombre de usuario (asumimos que lo guardamos en el campo email para simplificar en este modo bypass)
-            }
-
-            console.log("🔍 Buscando usuario en tabla app_users:", email);
-
-            // Usamos una consulta directa a la tabla. Supabase actúa solo como DB.
             const { data, error } = await supabase
                 .from('app_users')
                 .select('*')
-                .or(`email.eq.${email},email.eq.${email}@agua24.app`) // Busca exacto o con el sufijo
-                .eq('password', password.trim()) // Compara contraseña directa
+                .or(`email.eq.${email},email.eq.${email}@agua24.app`) 
+                .eq('password', password.trim()) 
                 .single();
 
-            if (error) {
-                console.error("Error DB Login:", error);
-                if (error.code === 'PGRST116') { // Código de "0 resultados"
-                     alert("Usuario o contraseña incorrectos.");
-                } else {
-                     alert(`Error de conexión: ${error.message}`);
-                }
-                return null;
-            }
-
+            if (error) return null;
             if (data) {
-                // Mapeamos el usuario de la DB al tipo User
                 return {
                     id: data.id,
                     email: data.email,
@@ -67,15 +56,10 @@ export const api = {
                 };
             }
             return null;
-
         } catch (err: any) {
-            console.error("Excepción Login:", err);
-            alert("Error desconocido intentando conectar.");
             return null;
         }
-
     } else {
-        // Offline Mode
         await new Promise(r => setTimeout(r, 600)); 
         const db = getDb();
         const user = db.users.find((u: any) => 
@@ -92,8 +76,6 @@ export const api = {
     if (USE_SUPABASE) {
         const { data } = await supabase.from('app_users').select('*');
         if (!data) return [];
-        
-        // MAPEO IMPORTANTE: Si es CONDO_ADMIN, el 'email' de la DB es en realidad el 'username'
         return data.map((u: any) => ({
             ...u,
             username: (u.role === 'CONDO_ADMIN' || !u.email.includes('@')) ? u.email : undefined
@@ -104,39 +86,23 @@ export const api = {
     }
   },
 
-  // Crear usuario insertando directamente en la tabla (Sin Auth Trigger)
   createUser: async (user: Omit<User, 'id'> & { password: string, assignedMachineId?: string }): Promise<User> => {
     if (USE_SUPABASE) {
         let finalEmail = user.email;
-        // Si no es email, lo convertimos a formato email interno o usamos el username
-        if (!finalEmail && user.username) {
-            finalEmail = user.username; // Lo guardamos tal cual o con sufijo
-        }
-        
+        if (!finalEmail && user.username) finalEmail = user.username;
         if (!finalEmail) throw new Error("Se requiere email o usuario");
 
         const newUserPayload = {
             email: finalEmail,
-            password: user.password.trim(), // Guardamos password directo
+            password: user.password.trim(), 
             name: user.name,
             role: user.role,
             phone: user.phone || null,
             assignedMachineId: user.assignedMachineId || null
         };
-
-        const { data, error } = await supabase
-            .from('app_users')
-            .insert(newUserPayload)
-            .select()
-            .single();
-
-        if (error) {
-            console.error("Error insertando usuario:", error);
-            throw new Error(`No se pudo crear: ${error.message}`);
-        }
-
+        const { data, error } = await supabase.from('app_users').insert(newUserPayload).select().single();
+        if (error) throw new Error(`No se pudo crear: ${error.message}`);
         return data as User;
-
     } else {
         const db = getDb();
         const newUser = { ...user, id: `u-${uuidv4()}` };
@@ -146,39 +112,20 @@ export const api = {
         return safeUser;
     }
   },
-
-  createProfileOnly: async (user: Omit<User, 'id'> & { uid: string, assignedMachineId?: string }): Promise<User> => {
-      // Este método ya no es necesario en el modo "Solo DB" porque createUser hace todo
-      // Pero lo mantenemos por compatibilidad
-      throw new Error("En modo Base de Datos Directa, usa 'Crear Usuario (Auto)'");
-  },
+  
+  createProfileOnly: async (user: any): Promise<User> => { throw new Error("Deprecated"); },
 
   updateUser: async (id: string, updates: Partial<User & { password?: string }>): Promise<User> => {
     if (USE_SUPABASE) {
         const fieldsToUpdate: any = { ...updates };
-        
-        // CORRECCIÓN PARA EVITAR ERROR 400:
-        // La tabla 'app_users' no tiene columna 'username', usa 'email' como identificador único.
-        // Si la app manda 'username', lo movemos a 'email'.
-        if (fieldsToUpdate.username) {
-             fieldsToUpdate.email = fieldsToUpdate.username;
-        }
-        
-        // Eliminamos 'username' del payload para que Supabase no tire error de "Column not found"
+        if (fieldsToUpdate.username) fieldsToUpdate.email = fieldsToUpdate.username;
         delete fieldsToUpdate.username;
-
-        // Limpieza de undefined
         if (fieldsToUpdate.email === undefined) delete fieldsToUpdate.email;
 
         const { data, error } = await supabase.from('app_users').update(fieldsToUpdate).eq('id', id).select().single();
         if(error) throw error;
-        
-        // Mapeamos de vuelta para la UI
         const updatedUser = data as any;
-        return {
-             ...updatedUser,
-             username: updatedUser.role === 'CONDO_ADMIN' ? updatedUser.email : undefined
-        } as User;
+        return { ...updatedUser, username: updatedUser.role === 'CONDO_ADMIN' ? updatedUser.email : undefined } as User;
     } else {
         const db = getDb();
         const index = db.users.findIndex((u: User) => u.id === id);
@@ -192,9 +139,7 @@ export const api = {
 
   deleteUser: async (id: string): Promise<void> => {
     if (USE_SUPABASE) {
-        // Borrado directo SQL simple
-        const { error } = await supabase.from('app_users').delete().eq('id', id);
-        if (error) throw error;
+        await supabase.from('app_users').delete().eq('id', id);
     } else {
         const db = getDb();
         db.users = db.users.filter((u: User) => u.id !== id);
@@ -202,8 +147,7 @@ export const api = {
     }
   },
 
-  // --- Machine Methods (Sin cambios mayores) ---
-
+  // --- Machine Methods ---
   getMachines: async (): Promise<Machine[]> => {
     if (USE_SUPABASE) {
         const { data } = await supabase.from('machines').select('*');
@@ -266,9 +210,7 @@ export const api = {
 
   assignMachineToUser: async (machineId: string, userId: string | null): Promise<void> => {
     if (USE_SUPABASE) {
-        if (userId) {
-            await supabase.from('app_users').update({ assignedMachineId: machineId }).eq('id', userId);
-        }
+        if (userId) await supabase.from('app_users').update({ assignedMachineId: machineId }).eq('id', userId);
         await supabase.from('machines').update({ assignedToUserId: userId }).eq('id', machineId);
     } else {
         const db = getDb();
@@ -278,19 +220,70 @@ export const api = {
     }
   },
 
-  // --- Report Methods (CORREGIDO PARA TOTALES) ---
+  // --- Visits Methods (PROGRAMACIÓN) ---
+  
+  getVisits: async (): Promise<Visit[]> => {
+      if (USE_SUPABASE) {
+          const { data } = await supabase.from('visits').select('*').order('date', { ascending: true });
+          return data as Visit[] || [];
+      } else {
+          return getDb().visits || [];
+      }
+  },
+
+  getVisitsByMachine: async (machineId: string): Promise<Visit[]> => {
+      if (USE_SUPABASE) {
+          const { data } = await supabase.from('visits').select('*').eq('machineId', machineId).order('date', { ascending: true });
+          return data as Visit[] || [];
+      } else {
+          const db = getDb();
+          return (db.visits || []).filter((v: Visit) => v.machineId === machineId).sort((a:Visit, b:Visit) => a.date.localeCompare(b.date));
+      }
+  },
+
+  getVisitsByTechnician: async (technicianId: string): Promise<Visit[]> => {
+      // Nota: Aquí se asume technicianId como el ID interno (UUID), no el teléfono.
+      // Si usas el teléfono, ajusta según tu lógica de usuarios.
+      if (USE_SUPABASE) {
+          const { data } = await supabase.from('visits').select('*').eq('technicianId', technicianId).order('date', { ascending: true });
+          return data as Visit[] || [];
+      } else {
+          const db = getDb();
+          return (db.visits || []).filter((v: Visit) => v.technicianId === technicianId).sort((a:Visit, b:Visit) => a.date.localeCompare(b.date));
+      }
+  },
+
+  addVisit: async (visit: Omit<Visit, 'id'>): Promise<Visit> => {
+      if (USE_SUPABASE) {
+          const { data, error } = await supabase.from('visits').insert(visit).select().single();
+          if (error) throw error;
+          return data as Visit;
+      } else {
+          const db = getDb();
+          const newVisit = { ...visit, id: uuidv4() };
+          if (!db.visits) db.visits = [];
+          db.visits.push(newVisit);
+          saveDb(db);
+          return newVisit;
+      }
+  },
+
+  deleteVisit: async (id: string): Promise<void> => {
+      if (USE_SUPABASE) {
+          await supabase.from('visits').delete().eq('id', id);
+      } else {
+          const db = getDb();
+          db.visits = db.visits.filter((v: Visit) => v.id !== id);
+          saveDb(db);
+      }
+  },
+
+  // --- Report Methods ---
 
   getAllReports: async (): Promise<Report[]> => {
     if (USE_SUPABASE) {
-        const { data, error } = await supabase
-            .from('reports')
-            .select('*')
-            .order('createdAt', { ascending: false });
-        
-        if (error) {
-            console.error("Error al obtener reportes:", error);
-            return [];
-        }
+        const { data, error } = await supabase.from('reports').select('*').order('createdAt', { ascending: false });
+        if (error) return [];
         return data as unknown as Report[] || [];
     } else {
         const reports = getDb().reports;
@@ -300,13 +293,7 @@ export const api = {
 
   getReportsByMachine: async (machineId: string, limit: number = 100): Promise<Report[]> => {
      if (USE_SUPABASE) {
-         const { data, error } = await supabase
-             .from('reports')
-             .select('*')
-             .eq('machineId', machineId)
-             .order('createdAt', { ascending: false })
-             .limit(limit);
-         
+         const { data, error } = await supabase.from('reports').select('*').eq('machineId', machineId).order('createdAt', { ascending: false }).limit(limit);
          if (error) return [];
          return data as unknown as Report[] || [];
      } else {
@@ -326,10 +313,7 @@ export const api = {
 
   submitReport: async (report: Omit<Report, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Report> => {
     if (USE_SUPABASE) {
-        const newReport = {
-            ...report,
-            status: ReportStatus.PENDING,
-        };
+        const newReport = { ...report, status: ReportStatus.PENDING };
         const { data, error } = await supabase.from('reports').insert(newReport).select().single();
         if(error) throw error;
         return data as unknown as Report;
@@ -371,7 +355,6 @@ export const api = {
     if (USE_SUPABASE) {
         const updates: any = { status, updatedAt: new Date().toISOString() };
         if (comments) updates.adminComments = comments;
-        
         const { data, error } = await supabase.from('reports').update(updates).eq('id', id).select().single();
         if (error) throw error;
         return data as unknown as Report;

@@ -31,7 +31,7 @@ export interface ChecklistItemDefinition {
   unit?: string; 
   min?: number; 
   max?: number; 
-  private?: boolean; // Nueva propiedad para ocultar datos a Condominios
+  private?: boolean; 
 }
 
 export interface ChecklistValue {
@@ -59,8 +59,18 @@ export interface Machine {
   location: string;
   lastMaintenance?: string;
   assignedToUserId?: string; 
-  nextWeeklyVisit?: string; // ISO Date YYYY-MM-DD
-  nextMonthlyVisit?: string; // ISO Date YYYY-MM-DD
+  nextWeeklyVisit?: string; // Legacy: Mantener por compatibilidad
+  nextMonthlyVisit?: string; // Legacy
+}
+
+export interface Visit {
+  id: string;
+  machineId: string;
+  technicianId: string;
+  technicianName: string;
+  date: string; // YYYY-MM-DD
+  type: 'weekly' | 'monthly';
+  status: 'pending' | 'completed';
 }
 
 export interface ChartData {

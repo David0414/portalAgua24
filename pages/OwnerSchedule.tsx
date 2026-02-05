@@ -1,82 +1,148 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/db';
-import { Machine } from '../types';
-import { ArrowLeft, Calendar, Save, Clock, MapPin, CheckCircle, AlertCircle } from 'lucide-react';
+import { Machine, User, Visit, Role } from '../types';
+import { ArrowLeft, Calendar, Plus, Trash2, MapPin, User as UserIcon, AlertCircle, RefreshCw, CalendarDays, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format, parseISO, isPast, isToday, isTomorrow, addDays } from 'date-fns';
+import { format, parseISO, isPast, isToday, isTomorrow, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export const OwnerSchedule: React.FC = () => {
   const navigate = useNavigate();
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [allVisits, setAllVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
 
-  // Local state for edits before saving
-  const [edits, setEdits] = useState<Record<string, { weekly: string, monthly: string }>>({});
+  // Selection State
+  const [selectedMachineId, setSelectedMachineId] = useState<string>('');
+  
+  // Add Visit State
+  const [newDate, setNewDate] = useState('');
+  const [newType, setNewType] = useState<'weekly' | 'monthly'>('weekly');
+  const [assignedTech, setAssignedTech] = useState<User | null>(null);
+
+  // Bulk Generator State
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [bulkDayOfWeek, setBulkDayOfWeek] = useState<number>(1); // 1 = Lunes
 
   useEffect(() => {
-    fetchMachines();
+    loadData();
   }, []);
 
-  const fetchMachines = async () => {
+  const loadData = async () => {
     setLoading(true);
-    const data = await api.getMachines();
-    setMachines(data);
+    const m = await api.getMachines();
+    const u = await api.getUsers();
+    const v = await api.getVisits();
     
-    // Initialize edits state with current DB values, ensuring defaults
-    const initialEdits: Record<string, any> = {};
-    data.forEach(m => {
-        initialEdits[m.id] = {
-            weekly: m.nextWeeklyVisit || '',
-            monthly: m.nextMonthlyVisit || ''
-        };
-    });
-    setEdits(initialEdits);
+    setMachines(m);
+    setUsers(u);
+    setAllVisits(v);
+    
+    if (m.length > 0 && !selectedMachineId) {
+        setSelectedMachineId(m[0].id);
+        updateAssignedTech(m[0].id, u);
+    } else if (selectedMachineId) {
+        updateAssignedTech(selectedMachineId, u);
+    }
+
     setLoading(false);
   };
 
-  const handleDateChange = (id: string, field: 'weekly' | 'monthly', value: string) => {
-      // Force update state immediately to allow typing/selecting
-      setEdits(prev => ({
-          ...prev,
-          [id]: {
-              ...prev[id],
-              [field]: value
-          }
-      }));
+  const updateAssignedTech = (machineId: string, userList: User[]) => {
+      // Find condo admin assigned to this machine to check relations, 
+      // BUT visits are usually assigned to a Technician.
+      // In this system, we need to find who is the "Main Technician" for a machine.
+      // Currently, the DB links Machine -> assignedToUserId (which is usually the CONDO ADMIN).
+      // We need to SELECT a technician manually or default to a technician if only one exists.
+      
+      // Let's find any user with Role TECHNICIAN.
+      const techs = userList.filter(user => user.role === Role.TECHNICIAN);
+      if (techs.length > 0) {
+          setAssignedTech(techs[0]); // Default to first tech for now
+      } else {
+          setAssignedTech(null);
+      }
   };
 
-  const saveSchedule = async (machine: Machine) => {
-      setSavingId(machine.id);
-      const schedule = edits[machine.id];
+  const handleMachineChange = (id: string) => {
+      setSelectedMachineId(id);
+      updateAssignedTech(id, users);
+  };
+
+  const handleAddVisit = async () => {
+      if (!selectedMachineId || !newDate || !assignedTech) {
+          alert("Faltan datos para programar.");
+          return;
+      }
+
       try {
-          await api.updateMachine(machine.id, {
-              nextWeeklyVisit: schedule.weekly || null, // ensure empty string becomes null
-              nextMonthlyVisit: schedule.monthly || null
+          await api.addVisit({
+              machineId: selectedMachineId,
+              technicianId: assignedTech.id, // Use User ID
+              technicianName: assignedTech.name,
+              date: newDate,
+              type: newType,
+              status: 'pending'
           });
-          // Visual feedback simulated delay
-          await new Promise(r => setTimeout(r, 500));
-      } catch (error) {
-          alert("Error al guardar programación");
-      } finally {
-          setSavingId(null);
+          setNewDate('');
+          loadData(); // Refresh list
+      } catch (e) {
+          alert("Error al crear visita");
       }
   };
 
-  const formatDateFriendly = (dateStr: string) => {
-      if (!dateStr) return '';
-      try {
-        const date = parseISO(dateStr);
-        if (isNaN(date.getTime())) return ''; // Invalid date check
-        
-        if (isToday(date)) return 'Hoy';
-        if (isTomorrow(date)) return 'Mañana';
-        return format(date, 'EEEE d MMM', { locale: es });
-      } catch (e) {
-        return '';
-      }
+  const handleDeleteVisit = async (id: string) => {
+      if(!confirm("¿Eliminar visita programada?")) return;
+      await api.deleteVisit(id);
+      loadData();
   };
+
+  // --- LOGIC TO GENERATE MONTH ---
+  const handleGenerateMonth = async () => {
+      if (!selectedMachineId || !assignedTech) return;
+
+      const now = new Date();
+      const start = startOfMonth(now);
+      const end = endOfMonth(now);
+      
+      const days = eachDayOfInterval({ start, end });
+      const targetDays = days.filter(d => getDay(d) === bulkDayOfWeek);
+
+      let createdCount = 0;
+
+      for (const d of targetDays) {
+          const dateStr = format(d, 'yyyy-MM-dd');
+          
+          // Check if already exists
+          const exists = allVisits.find(v => v.machineId === selectedMachineId && v.date === dateStr);
+          
+          if (!exists) {
+              await api.addVisit({
+                  machineId: selectedMachineId,
+                  technicianId: assignedTech.id,
+                  technicianName: assignedTech.name,
+                  date: dateStr,
+                  type: 'weekly', // Default to weekly for bulk
+                  status: 'pending'
+              });
+              createdCount++;
+          }
+      }
+      
+      alert(`Se programaron ${createdCount} visitas para este mes.`);
+      setIsBulkOpen(false);
+      loadData();
+  };
+
+  const machineVisits = allVisits
+    .filter(v => v.machineId === selectedMachineId)
+    .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const upcomingVisits = machineVisits.filter(v => !isPast(parseISO(v.date)) || isToday(parseISO(v.date)));
+  const pastVisits = machineVisits.filter(v => isPast(parseISO(v.date)) && !isToday(parseISO(v.date)));
+
+  const techs = users.filter(u => u.role === Role.TECHNICIAN);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
@@ -87,95 +153,211 @@ export const OwnerSchedule: React.FC = () => {
             </button>
             <h1 className="text-3xl font-bold text-slate-900 flex items-center">
                 <Calendar className="mr-3 h-8 w-8 text-indigo-600" />
-                Programación de Visitas
+                Programación Mensual
             </h1>
-            <p className="text-slate-500 mt-1">Define las fechas de mantenimiento para cada equipo.</p>
+            <p className="text-slate-500 mt-1">Gestiona las visitas para cada técnico y máquina.</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-         {loading ? (
-             <div className="p-10 text-center text-slate-400">Cargando inventario...</div>
-         ) : machines.length === 0 ? (
-             <div className="p-10 text-center text-slate-400">No hay máquinas registradas.</div>
-         ) : (
-             <div className="divide-y divide-slate-100">
-                 {machines.map(m => {
-                     // Ensure we have a default object even if state lagged (prevents crash)
-                     const currentEdit = edits[m.id] || { weekly: '', monthly: '' };
-                     
-                     const isWeeklyPast = currentEdit.weekly && isPast(parseISO(currentEdit.weekly)) && !isToday(parseISO(currentEdit.weekly));
-                     const isMonthlyPast = currentEdit.monthly && isPast(parseISO(currentEdit.monthly)) && !isToday(parseISO(currentEdit.monthly));
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* LEFT COLUMN: Controls */}
+          <div className="space-y-6">
+              {/* Machine Selector */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                  <label className="block text-sm font-bold text-slate-700 uppercase mb-2">Seleccionar Máquina</label>
+                  <select 
+                      className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      value={selectedMachineId}
+                      onChange={(e) => handleMachineChange(e.target.value)}
+                  >
+                      {machines.map(m => (
+                          <option key={m.id} value={m.id}>{m.location} ({m.id})</option>
+                      ))}
+                  </select>
+                  
+                  {selectedMachineId && (
+                      <div className="mt-4 p-3 bg-indigo-50 rounded-lg flex items-center text-sm text-indigo-800">
+                          <MapPin className="h-4 w-4 mr-2" />
+                          <span className="font-medium">
+                              {machines.find(m => m.id === selectedMachineId)?.location}
+                          </span>
+                      </div>
+                  )}
+              </div>
 
-                     return (
-                         <div key={m.id} className="p-6 flex flex-col md:flex-row gap-6 hover:bg-slate-50 transition">
-                             {/* Info Machine */}
-                             <div className="md:w-1/3">
-                                 <div className="flex items-center space-x-2 mb-1">
-                                     <MapPin className="h-4 w-4 text-slate-400" />
-                                     <span className="font-bold text-slate-800">{m.location}</span>
-                                 </div>
-                                 <div className="text-xs font-mono text-slate-400 bg-slate-100 inline-block px-2 py-1 rounded">
-                                     {m.id}
-                                 </div>
-                             </div>
+              {/* Add Visit Form */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 relative overflow-hidden">
+                   <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                   <h3 className="font-bold text-lg text-indigo-900 mb-4 flex items-center">
+                       <Plus className="h-5 w-5 mr-2" /> Agregar Visita
+                   </h3>
+                   
+                   <div className="space-y-4">
+                       <div>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Técnico Asignado</label>
+                           {techs.length > 0 ? (
+                               <select 
+                                  className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                  value={assignedTech?.id || ''}
+                                  onChange={(e) => setAssignedTech(users.find(u => u.id === e.target.value) || null)}
+                               >
+                                   {techs.map(t => (
+                                       <option key={t.id} value={t.id}>{t.name}</option>
+                                   ))}
+                               </select>
+                           ) : (
+                               <p className="text-red-500 text-xs">No hay técnicos registrados.</p>
+                           )}
+                       </div>
 
-                             {/* Inputs */}
-                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                 {/* Weekly */}
-                                 <div className="bg-white border border-slate-200 p-3 rounded-lg relative focus-within:ring-2 ring-indigo-100">
-                                     <label className="block text-xs font-bold text-indigo-600 uppercase mb-1 flex justify-between">
-                                         Visita Semanal
-                                         <span className="text-slate-400 font-normal normal-case">
-                                             {formatDateFriendly(currentEdit.weekly)}
-                                         </span>
-                                     </label>
-                                     <input 
-                                         type="date" 
-                                         className={`w-full outline-none text-sm font-medium bg-transparent ${isWeeklyPast ? 'text-red-500' : 'text-slate-700'}`}
-                                         value={currentEdit.weekly}
-                                         onChange={(e) => handleDateChange(m.id, 'weekly', e.target.value)}
-                                     />
-                                     {isWeeklyPast && <AlertCircle className="absolute right-3 top-8 h-4 w-4 text-red-400" />}
-                                 </div>
+                       <div>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha</label>
+                           <input 
+                              type="date"
+                              className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                              value={newDate}
+                              onChange={(e) => setNewDate(e.target.value)}
+                           />
+                       </div>
 
-                                 {/* Monthly */}
-                                 <div className="bg-white border border-slate-200 p-3 rounded-lg relative focus-within:ring-2 ring-teal-100">
-                                     <label className="block text-xs font-bold text-teal-600 uppercase mb-1 flex justify-between">
-                                         Visita Mensual
-                                         <span className="text-slate-400 font-normal normal-case">
-                                             {formatDateFriendly(currentEdit.monthly)}
-                                         </span>
-                                     </label>
-                                     <input 
-                                         type="date" 
-                                         className={`w-full outline-none text-sm font-medium bg-transparent ${isMonthlyPast ? 'text-red-500' : 'text-slate-700'}`}
-                                         value={currentEdit.monthly}
-                                         onChange={(e) => handleDateChange(m.id, 'monthly', e.target.value)}
-                                     />
-                                     {isMonthlyPast && <AlertCircle className="absolute right-3 top-8 h-4 w-4 text-red-400" />}
-                                 </div>
-                             </div>
+                       <div>
+                           <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Servicio</label>
+                           <div className="flex space-x-2">
+                               <button 
+                                  onClick={() => setNewType('weekly')}
+                                  className={`flex-1 py-2 text-xs font-bold rounded border ${newType === 'weekly' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                               >
+                                   Semanal
+                               </button>
+                               <button 
+                                  onClick={() => setNewType('monthly')}
+                                  className={`flex-1 py-2 text-xs font-bold rounded border ${newType === 'monthly' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                               >
+                                   Mensual
+                               </button>
+                           </div>
+                       </div>
 
-                             {/* Action */}
-                             <div className="flex items-center">
-                                 <button
-                                     onClick={() => saveSchedule(m)}
-                                     disabled={savingId === m.id}
-                                     className={`p-3 rounded-full transition shadow-sm ${
-                                         savingId === m.id 
-                                         ? 'bg-green-100 text-green-600' 
-                                         : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                     }`}
+                       <button 
+                          onClick={handleAddVisit}
+                          className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition shadow-lg mt-2"
+                       >
+                           Programar Visita
+                       </button>
+                   </div>
+              </div>
+
+              {/* Bulk Tool */}
+              <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                  <h3 className="font-bold text-sm text-slate-700 mb-2 flex items-center">
+                      <CalendarDays className="h-4 w-4 mr-2" /> Herramientas
+                  </h3>
+                  {!isBulkOpen ? (
+                      <button 
+                        onClick={() => setIsBulkOpen(true)}
+                        className="w-full py-2 bg-white border border-slate-300 text-slate-600 font-bold rounded text-sm hover:bg-slate-100"
+                      >
+                          Generar Mes Completo...
+                      </button>
+                  ) : (
+                      <div className="animate-in fade-in slide-in-from-top-2">
+                          <p className="text-xs text-slate-500 mb-2">Crear visitas para todo el mes actual:</p>
+                          <select 
+                             className="w-full p-2 border border-slate-300 rounded mb-3 text-sm"
+                             value={bulkDayOfWeek}
+                             onChange={(e) => setBulkDayOfWeek(parseInt(e.target.value))}
+                          >
+                              <option value="1">Todos los Lunes</option>
+                              <option value="2">Todos los Martes</option>
+                              <option value="3">Todos los Miércoles</option>
+                              <option value="4">Todos los Jueves</option>
+                              <option value="5">Todos los Viernes</option>
+                              <option value="6">Todos los Sábados</option>
+                          </select>
+                          <div className="flex space-x-2">
+                              <button onClick={() => setIsBulkOpen(false)} className="flex-1 py-1 text-xs text-slate-500">Cancelar</button>
+                              <button onClick={handleGenerateMonth} className="flex-1 py-1 bg-indigo-600 text-white text-xs font-bold rounded">Confirmar</button>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
+
+          {/* RIGHT COLUMN: Calendar List */}
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
+               <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                   <h2 className="font-bold text-slate-700">Agenda de Visitas</h2>
+                   <span className="text-xs font-bold bg-white border px-2 py-1 rounded text-slate-500">
+                       {upcomingVisits.length} Pendientes
+                   </span>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                   {machineVisits.length === 0 ? (
+                       <div className="text-center py-20 text-slate-400">
+                           <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                           <p>No hay visitas programadas para esta máquina.</p>
+                       </div>
+                   ) : (
+                       <>
+                         {/* UPCOMING */}
+                         {upcomingVisits.map(v => (
+                             <div key={v.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition group border-l-4 border-l-green-500">
+                                 <div className="flex items-center space-x-4">
+                                     <div className="text-center">
+                                         <p className="text-xs font-bold text-slate-500 uppercase">{format(parseISO(v.date), 'MMM', {locale: es})}</p>
+                                         <p className="text-xl font-bold text-slate-800">{format(parseISO(v.date), 'dd')}</p>
+                                     </div>
+                                     <div>
+                                         <p className="font-bold text-slate-800 flex items-center">
+                                             {format(parseISO(v.date), "EEEE", {locale: es})}
+                                             {v.type === 'monthly' && <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-2 rounded-full border border-purple-200">MENSUAL</span>}
+                                         </p>
+                                         <div className="flex items-center text-xs text-slate-500 mt-1">
+                                             <UserIcon className="h-3 w-3 mr-1" />
+                                             {v.technicianName}
+                                         </div>
+                                     </div>
+                                 </div>
+                                 <button 
+                                    onClick={() => handleDeleteVisit(v.id)}
+                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition"
                                  >
-                                     {savingId === m.id ? <CheckCircle className="h-5 w-5 animate-pulse" /> : <Save className="h-5 w-5" />}
+                                     <Trash2 className="h-4 w-4" />
                                  </button>
                              </div>
-                         </div>
-                     );
-                 })}
-             </div>
-         )}
+                         ))}
+
+                         {/* PAST HEADER */}
+                         {pastVisits.length > 0 && (
+                             <div className="pt-4 pb-2">
+                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Historial Pasado</p>
+                             </div>
+                         )}
+
+                         {/* PAST */}
+                         {pastVisits.map(v => (
+                             <div key={v.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg opacity-60">
+                                 <div className="flex items-center space-x-4">
+                                     <div className="text-center min-w-[30px]">
+                                         <p className="text-sm font-bold text-slate-500">{format(parseISO(v.date), 'dd/MM')}</p>
+                                     </div>
+                                     <div>
+                                         <p className="text-sm font-medium text-slate-700">
+                                             {v.type === 'monthly' ? 'Visita Mensual' : 'Visita Semanal'}
+                                         </p>
+                                         <p className="text-xs text-slate-500">{v.technicianName}</p>
+                                     </div>
+                                 </div>
+                                 <span className="text-xs bg-slate-200 text-slate-500 px-2 py-1 rounded">Pasado</span>
+                             </div>
+                         ))}
+                       </>
+                   )}
+               </div>
+          </div>
+
       </div>
     </div>
   );

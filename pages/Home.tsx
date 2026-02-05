@@ -69,7 +69,7 @@ export const Home: React.FC = () => {
                       <ShieldCheck className="h-6 w-6 text-indigo-600 group-hover:text-white transition-colors" />
                   </div>
                   <div>
-                      <h2 className="text-lg font-bold text-slate-800">Soy Administrador</h2>
+                      <h2 className="text-lg font-bold text-slate-800">Agua/24</h2>
                       <p className="text-slate-500 text-xs">Gestión, usuarios y finanzas</p>
                   </div>
               </Link>
@@ -79,7 +79,7 @@ export const Home: React.FC = () => {
                       <Building className="h-6 w-6 text-teal-600 group-hover:text-white transition-colors" />
                   </div>
                   <div>
-                      <h2 className="text-lg font-bold text-slate-800">Soy Condominio</h2>
+                      <h2 className="text-lg font-bold text-slate-800">Soy Administrador/Condómino</h2>
                       <p className="text-slate-500 text-xs">Consultar calidad del agua</p>
                   </div>
               </Link>

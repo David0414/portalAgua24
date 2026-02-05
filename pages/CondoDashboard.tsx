@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/db';
-import { Report, ReportStatus, Machine } from '../types';
+import { Report, ReportStatus, Machine, Visit } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight, FileStack } from 'lucide-react';
+import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight, FileStack, User } from 'lucide-react';
 import { format, differenceInDays, subMonths, isAfter, parseISO, isPast, isToday, isTomorrow, addDays, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar, Brush } from 'recharts';
@@ -150,6 +150,7 @@ export const CondoDashboard: React.FC = () => {
   const [latestReport, setLatestReport] = useState<Report | null>(null);
   const [machineInfo, setMachineInfo] = useState<Machine | null>(null);
   const [specialReports, setSpecialReports] = useState<Report[]>([]);
+  const [upcomingVisit, setUpcomingVisit] = useState<Visit | null>(null);
   
   // NEW TIME RANGE STATE
   const [timeRange, setTimeRange] = useState<TimeRange>('1m');
@@ -177,6 +178,12 @@ export const CondoDashboard: React.FC = () => {
       if (machineDetails) {
          setMachineInfo(machineDetails);
       }
+
+      // Fetch visits
+      const visits = await api.getVisitsByMachine(machineId);
+      // Find first future visit
+      const next = visits.find(v => !isPast(parseISO(v.date)) || isToday(parseISO(v.date)));
+      setUpcomingVisit(next || null);
 
       const machineReports = await api.getReportsByMachine(machineId, 50);
       const approvedReports = machineReports.filter(r => r.status === ReportStatus.APPROVED);
@@ -264,10 +271,11 @@ export const CondoDashboard: React.FC = () => {
       return differenceInDays(new Date(), new Date(reportDate)) > 60;
   };
 
+  // Helper to format visit display
   const getNextVisitDisplay = () => {
-      if (!machineInfo || !machineInfo.nextWeeklyVisit) return null;
+      if (!upcomingVisit) return null;
       
-      const date = parseISO(machineInfo.nextWeeklyVisit);
+      const date = parseISO(upcomingVisit.date);
       const isLate = isPast(date) && !isToday(date);
       
       let label = format(date, "EEEE d 'de' MMMM", { locale: es });
@@ -278,7 +286,13 @@ export const CondoDashboard: React.FC = () => {
       let diffText = "";
       if (daysDiff > 1 && daysDiff < 7) diffText = `(En ${daysDiff} días)`;
       
-      return { label, isLate, diffText };
+      return { 
+          label, 
+          isLate, 
+          diffText,
+          techName: upcomingVisit.technicianName,
+          type: upcomingVisit.type
+      };
   };
 
   const nextVisit = getNextVisitDisplay();
@@ -326,13 +340,25 @@ export const CondoDashboard: React.FC = () => {
               <div className={`p-3 rounded-full mr-4 ${nextVisit.isLate ? 'bg-amber-100' : 'bg-teal-100'}`}>
                   <Calendar className={`h-6 w-6 ${nextVisit.isLate ? 'text-amber-600' : 'text-teal-600'}`} />
               </div>
-              <div>
-                  <h3 className={`text-sm font-bold uppercase ${nextVisit.isLate ? 'text-amber-800' : 'text-teal-800'}`}>
-                      {nextVisit.isLate ? 'Visita Pendiente' : 'Próxima Visita Programada'}
-                  </h3>
-                  <p className="text-lg font-bold text-slate-800 capitalize">
-                      {nextVisit.label} <span className="text-sm font-normal text-slate-500">{nextVisit.diffText}</span>
-                  </p>
+              <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                      <div>
+                          <h3 className={`text-sm font-bold uppercase ${nextVisit.isLate ? 'text-amber-800' : 'text-teal-800'}`}>
+                              {nextVisit.isLate ? 'Visita Pendiente' : 'Próxima Visita Programada'}
+                          </h3>
+                          <p className="text-lg font-bold text-slate-800 capitalize">
+                              {nextVisit.label} <span className="text-sm font-normal text-slate-500">{nextVisit.diffText}</span>
+                          </p>
+                      </div>
+                      {nextVisit.type === 'monthly' && (
+                          <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-1 rounded border border-purple-200 uppercase">
+                              Mensual
+                          </span>
+                      )}
+                  </div>
+                  <div className="mt-2 flex items-center text-sm text-slate-500">
+                      <User className="h-3 w-3 mr-1" /> Técnico: <span className="font-medium ml-1">{nextVisit.techName}</span>
+                  </div>
               </div>
           </div>
       )}
