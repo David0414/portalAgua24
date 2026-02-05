@@ -22,9 +22,6 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
   // --- Insumos ---
   { id: 'w_capping', label: 'Llenado de tapitas', type: 'boolean', required: true, section: 'weekly', reference: 'Lleno' },
 
-  // --- PRIVADO (SOLO PROPIETARIO) ---
-  { id: 'w14', label: 'Acomodo de monedas en Hopper', type: 'boolean', required: true, section: 'weekly', reference: 'Lleno', private: true },
-  
   // --- Dinero y Ventas (PRIVADO) ---
   { id: 'w_exchange', label: 'Cambio ingresado (Monedas $1)', type: 'number', required: true, section: 'weekly', reference: 'Opcional', unit: 'MXN', private: true },
   
