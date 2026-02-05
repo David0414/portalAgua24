@@ -7,6 +7,9 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
   { id: 'w2', label: 'Sanitización interna de ventana', type: 'boolean', required: true, section: 'weekly', reference: 'Desinfectado' },
   { id: 'w3', label: 'Limpieza general interior (Filtros, tuberías)', type: 'boolean', required: true, section: 'weekly', reference: 'Sin Fugas/Suciedad' },
   
+  // --- Prueba Sensorial (NUEVO) ---
+  { id: 'w_taste', label: 'Probar agua (Sabor)', type: 'boolean', required: true, section: 'weekly', reference: 'Sin sabor extraño' },
+  
   // --- Calidad de Agua (Lecturas Únicas) ---
   { id: 'w_ph', label: 'pH (Potencial de Hidrógeno)', type: 'number', required: true, section: 'weekly', reference: '6.5 - 8.5', unit: 'pH', min: 6.5, max: 8.5 },
   { id: 'w_cl', label: 'Cloro (Cloro Libre)', type: 'number', required: true, section: 'weekly', reference: '0.2 - 1.5', unit: 'mg/L', min: 0.2, max: 1.5 },
@@ -39,9 +42,10 @@ export const MONTHLY_CHECKLIST: ChecklistItemDefinition[] = [
 
   // --- Items Mensuales ---
   { id: 'm1', label: 'Revisión de sticker exterior', type: 'boolean', required: true, section: 'monthly', reference: 'Intacto' },
-  { id: 'm2', label: 'Análisis Físico (Color)', type: 'text', required: true, section: 'monthly', reference: 'Incoloro' },
-  { id: 'm3', label: 'Análisis Físico (Turbiedad)', type: 'text', required: true, section: 'monthly', reference: 'Cristalina' },
-  { id: 'm4', label: 'Coliformes Totales', type: 'text', required: true, section: 'monthly', reference: 'Ausente / Negativo' },
+  
+  // --- Pruebas de Laboratorio (Consolidado) ---
+  { id: 'm_lab_tests', label: 'Foto 3 pruebas (Color, Turbiedad, Coliformes)', type: 'boolean', required: true, section: 'monthly', reference: 'Pruebas OK' },
+
   { id: 'm5', label: 'Revisión auditiva de bombas', type: 'boolean', required: true, section: 'monthly', reference: 'Sin ruidos extraños' },
   { id: 'm6', label: 'Revisión de fugas de agua', type: 'boolean', required: true, section: 'monthly', reference: 'Seco' },
 ];
