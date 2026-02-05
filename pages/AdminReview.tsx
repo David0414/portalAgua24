@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/db';
 import { Report, ReportStatus, User, Role } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight, Copy, Users, Phone, UserCheck, Send } from 'lucide-react';
+import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight, Copy, Users, Phone, UserCheck, Send, FileCheck } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
 import { format, differenceInDays } from 'date-fns';
@@ -192,10 +192,10 @@ export const AdminReview: React.FC = () => {
       const ph = report.data.find(d => d.itemId === 'w_ph')?.value || '--';
       
       if (report.type === 'special') {
-          return `⚠️ *Bitácora de Evento*\n\nSe ha registrado un reporte especial en *${machineInfo.location}* (ID: ${machineInfo.id}) el día ${dateStr}.\n\n📄 Detalles disponibles en su portal:\n${PRODUCTION_URL}/#/login/condo\n\n_Agua/24 - Siempre pura._`;
+          return `⚠️ *Bitácora de Evento*\n\nSe ha registrado un reporte especial en *${machineInfo.location}* (ID: ${machineInfo.id}) el día ${dateStr}.\n\n📄 Detalles disponibles en su portal:\n${PRODUCTION_URL}/#/login/condo\n\n(Se adjunta PDF con evidencias)`;
       }
 
-      return generateCondoReportMessage(machineInfo.id, machineInfo.location, dateStr, tds.toString(), ph.toString());
+      return generateCondoReportMessage(machineInfo.id, machineInfo.location, dateStr, tds.toString(), ph.toString()) + "\n\n(Se adjunta PDF con detalles)";
   };
 
   const sendCondoWhatsApp = () => {
@@ -205,19 +205,6 @@ export const AdminReview: React.FC = () => {
     }
     const msg = getCondoMessage();
     sendWhatsAppNotification(condoContact.phone, msg);
-  };
-
-  const handleCopyForGroup = async () => {
-      const msg = getCondoMessage();
-      try {
-          await navigator.clipboard.writeText(msg);
-          // Alertar al usuario
-          alert("✅ Mensaje copiado al portapapeles.\n\nAhora se abrirá WhatsApp. Selecciona el Grupo y pega el mensaje.");
-          // Abrir WhatsApp Web genérico
-          window.open('https://web.whatsapp.com', '_blank');
-      } catch (err) {
-          alert("No se pudo copiar automáticamente. Intenta de nuevo.");
-      }
   };
 
   const getValue = (itemId: string) => {
@@ -252,9 +239,10 @@ export const AdminReview: React.FC = () => {
             {outcome.status === ReportStatus.APPROVED ? 'Validación Completada' : 'Reporte Rechazado'}
           </h2>
           {outcome.status === ReportStatus.APPROVED && (
-              <p className="text-sm text-slate-500 mt-1">
-                 El PDF se ha descargado a tu dispositivo.
-              </p>
+              <div className="mt-2 flex items-center justify-center space-x-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
+                 <FileCheck className="h-4 w-4" />
+                 <span>PDF Descargado Automáticamente</span>
+              </div>
           )}
         </div>
 
@@ -262,72 +250,72 @@ export const AdminReview: React.FC = () => {
             {outcome.status === ReportStatus.APPROVED ? (
                <>
                  {/* Step 1: Tech */}
-                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-blue-200 text-blue-800 text-xs font-bold px-2 py-1 rounded-bl-lg">PASO 1</div>
+                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 relative overflow-hidden group hover:border-blue-300 transition">
+                    <div className="absolute top-0 right-0 bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">PASO 1</div>
                     <div className="flex items-start mb-3">
-                        <UserCheck className="h-6 w-6 text-blue-600 mr-3 mt-1" />
+                        <UserCheck className="h-5 w-5 text-blue-600 mr-3 mt-1" />
                         <div>
-                            <h3 className="font-bold text-blue-900">Avisar al Técnico</h3>
-                            <p className="text-xs text-blue-700">Confirma a <span className="font-bold">{report.technicianName}</span> que el reporte fue aprobado.</p>
+                            <h3 className="font-bold text-slate-800">Confirmar al Técnico</h3>
+                            <p className="text-xs text-slate-500">Notificar a <span className="font-medium">{report.technicianName}</span></p>
                         </div>
                     </div>
                     <button
                         onClick={sendTechWhatsApp}
-                        className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-bold transition shadow-sm"
+                        className="w-full flex items-center justify-center space-x-2 bg-white border border-slate-300 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 py-2.5 rounded-lg font-bold transition shadow-sm"
                     >
                         <MessageCircle className="h-4 w-4" />
-                        <span>Enviar WhatsApp a Técnico</span>
+                        <span>Enviar WhatsApp</span>
                     </button>
                  </div>
                 
                 {/* Step 2: Condo - ONLY IF VISIBLE */}
                 {isActuallyVisible ? (
-                    <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 bg-teal-200 text-teal-800 text-xs font-bold px-2 py-1 rounded-bl-lg">PASO 2</div>
-                        <div className="flex items-start mb-3">
-                            <Building className="h-6 w-6 text-teal-600 mr-3 mt-1" />
-                            <div>
-                                <h3 className="font-bold text-teal-900">Entregar al Condominio</h3>
-                                {condoContact ? (
-                                    <p className="text-xs text-teal-700">
-                                        Enviar reporte a: <span className="font-bold">{condoContact.name}</span>
-                                    </p>
-                                ) : (
-                                    <p className="text-xs text-red-500 font-bold">Sin administrador asignado</p>
-                                )}
+                    <div className="bg-teal-50 border border-teal-200 rounded-xl p-5 relative overflow-hidden shadow-sm">
+                        <div className="absolute top-0 right-0 bg-teal-200 text-teal-800 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">PASO 2</div>
+                        <div className="flex items-start mb-4">
+                            <Building className="h-5 w-5 text-teal-600 mr-3 mt-1" />
+                            <div className="flex-1">
+                                <h3 className="font-bold text-teal-900">Enviar Reporte al Condominio</h3>
+                                <div className="mt-1 flex items-center justify-between">
+                                    {condoContact ? (
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-teal-800 flex items-center">
+                                                <UserCheck className="h-3 w-3 mr-1" /> {condoContact.name}
+                                            </span>
+                                            <span className="text-xs text-teal-600 flex items-center mt-0.5">
+                                                <Phone className="h-3 w-3 mr-1" /> {condoContact.phone}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded">
+                                            ⚠️ Sin administrador asignado
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                            {/* Option A: Direct Chat */}
-                            <button
-                                onClick={sendCondoWhatsApp}
-                                disabled={!condoContact}
-                                className="flex flex-col items-center justify-center p-3 bg-white border border-teal-200 rounded-lg hover:bg-teal-100 transition disabled:opacity-50"
-                            >
-                                <Send className="h-5 w-5 text-teal-600 mb-1" />
-                                <span className="text-xs font-bold text-teal-800">Enviar a Admin</span>
-                                <span className="text-[9px] text-slate-400">Mensaje Directo</span>
-                            </button>
-
-                            {/* Option B: Group Copy */}
-                            <button
-                                onClick={handleCopyForGroup}
-                                className="flex flex-col items-center justify-center p-3 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition"
-                            >
-                                <Copy className="h-5 w-5 text-indigo-600 mb-1" />
-                                <span className="text-xs font-bold text-indigo-800">Copiar Mensaje</span>
-                                <span className="text-[9px] text-slate-400">Para pegar en Grupo</span>
-                            </button>
+                        {/* IMPORTANT ALERT */}
+                        <div className="mb-4 bg-white border-l-4 border-amber-400 p-3 rounded-r shadow-sm flex items-start">
+                            <Paperclip className="h-4 w-4 text-amber-500 mr-2 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-slate-600">
+                                <strong>Importante:</strong> El PDF ya se descargó en tu dispositivo. Debes <u>adjuntarlo manualmente</u> en el chat.
+                            </p>
                         </div>
-                        <p className="text-[10px] text-teal-600 mt-2 text-center">
-                            * Recuerda adjuntar el PDF descargado en el chat.
-                        </p>
+
+                        <button
+                            onClick={sendCondoWhatsApp}
+                            disabled={!condoContact?.phone}
+                            className="w-full flex items-center justify-center space-x-2 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-bold transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Send className="h-4 w-4" />
+                            <span>Abrir Chat y Adjuntar PDF</span>
+                        </button>
                     </div>
                 ) : (
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-slate-500 text-sm">
                         <EyeOff className="h-5 w-5 mr-2" />
-                        <span>Este reporte es interno (Oculto al cliente).</span>
+                        <span>Reporte interno (Oculto al cliente).</span>
                     </div>
                 )}
                </>
