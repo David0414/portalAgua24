@@ -63,8 +63,9 @@ export const AdminReview: React.FC = () => {
 
   if (!report) return <div className="p-8 text-center flex justify-center"><Loader2 className="animate-spin text-brand-600" /></div>;
 
+  // LOGIC CHANGE: Monthly Report view now merges lists
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : 
-                       report.type === 'monthly' ? MONTHLY_CHECKLIST :
+                       report.type === 'monthly' ? [...WEEKLY_CHECKLIST, ...MONTHLY_CHECKLIST] :
                        SPECIAL_CHECKLIST;
 
   const goBackToDashboard = () => {
@@ -357,6 +358,9 @@ export const AdminReview: React.FC = () => {
                     <tbody className="divide-y divide-slate-100 text-sm">
                         {checklistDef.map((item, idx) => {
                             const data = getValue(item.id);
+                            // If item is not found in data (e.g. newly added item to checklist but old report), skip or show empty
+                            if (!data) return null; 
+
                             const val = data?.value;
                             const isBool = item.type === 'boolean';
                             const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';

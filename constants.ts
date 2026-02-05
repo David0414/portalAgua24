@@ -13,9 +13,7 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
   { id: 'w_tds', label: 'TDS (Sólidos Disueltos Totales)', type: 'number', required: true, section: 'weekly', reference: '50 - 300', unit: 'ppm', min: 50, max: 300 },
   { id: 'w_hardness', label: 'Dureza (Dureza Total)', type: 'number', required: true, section: 'weekly', reference: '< 200', unit: 'mg/L', max: 200 },
 
-  // --- Sistema y Medidores ---
-  { id: 'w_water_meter', label: 'Lectura Medidor de Agua (m³)', type: 'number', required: true, section: 'weekly', reference: 'Lectura', unit: 'm³' },
-  { id: 'w_energy', label: 'Medidor de energía eléctrica', type: 'number', required: true, section: 'weekly', reference: 'Lectura', unit: 'kWh' },
+  // --- Sistema (Bombas) ---
   { id: 'w12', label: 'Revisión funcionamiento de bombas', type: 'boolean', required: true, section: 'weekly', reference: 'Operativo' },
   
   // --- Insumos ---
@@ -35,6 +33,11 @@ export const WEEKLY_CHECKLIST: ChecklistItemDefinition[] = [
 ];
 
 export const MONTHLY_CHECKLIST: ChecklistItemDefinition[] = [
+  // --- Medidores (Movidos de Semanal a Mensual) ---
+  { id: 'w_water_meter', label: 'Lectura Medidor de Agua (m³)', type: 'number', required: true, section: 'monthly', reference: 'Lectura', unit: 'm³' },
+  { id: 'w_energy', label: 'Medidor de energía eléctrica', type: 'number', required: true, section: 'monthly', reference: 'Lectura', unit: 'kWh' },
+
+  // --- Items Mensuales ---
   { id: 'm1', label: 'Revisión de sticker exterior', type: 'boolean', required: true, section: 'monthly', reference: 'Intacto' },
   { id: 'm2', label: 'Análisis Físico (Color)', type: 'text', required: true, section: 'monthly', reference: 'Incoloro' },
   { id: 'm3', label: 'Análisis Físico (Turbiedad)', type: 'text', required: true, section: 'monthly', reference: 'Cristalina' },

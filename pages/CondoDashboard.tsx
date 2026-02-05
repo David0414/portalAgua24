@@ -2,12 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../services/db';
 import { Report, ReportStatus, Machine } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight } from 'lucide-react';
-import { format, differenceInDays, subMonths, isAfter, parseISO, isPast, isToday, isTomorrow, addDays } from 'date-fns';
+import { Droplets, Info, Activity, TestTube, Download, FileText, Check, AlertCircle, Shield, Calendar, Eye, X, Image as ImageIcon, ZoomIn, Clock, Maximize2, AlertOctagon, ChevronRight, FileStack } from 'lucide-react';
+import { format, differenceInDays, subMonths, isAfter, parseISO, isPast, isToday, isTomorrow, addDays, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar, Brush } from 'recharts';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
-import { generateReportPDF } from '../services/pdfGenerator';
+import { generateReportPDF, generateMonthlyBundlePDF } from '../services/pdfGenerator';
 
 type TimeRange = 'latest' | '1m' | '3m' | '6m';
 
@@ -27,7 +27,10 @@ const getCondoTableData = (report: Report | null) => {
          }];
     }
 
-    const checklist = report.type === 'weekly' ? WEEKLY_CHECKLIST : MONTHLY_CHECKLIST;
+    // LOGIC CHANGE: If Monthly, combine lists so labels are found
+    const checklist = report.type === 'weekly' ? WEEKLY_CHECKLIST : 
+                      report.type === 'monthly' ? [...WEEKLY_CHECKLIST, ...MONTHLY_CHECKLIST] :
+                      MONTHLY_CHECKLIST;
     
     return checklist
       .filter(item => !item.private)
@@ -237,7 +240,22 @@ export const CondoDashboard: React.FC = () => {
 
   const handleDownloadReport = (e: React.MouseEvent, report: Report) => {
       e.stopPropagation();
-      if (machineInfo) {
+      if (!machineInfo) return;
+
+      if (report.type === 'monthly') {
+          // BUNDLE LOGIC: Find weekly reports within that month
+          const monthDate = new Date(report.createdAt);
+          const start = startOfMonth(monthDate);
+          const end = endOfMonth(monthDate);
+
+          const weeklyReports = history.filter(r => 
+             r.type === 'weekly' &&
+             r.status === ReportStatus.APPROVED &&
+             isWithinInterval(new Date(r.createdAt), { start, end })
+          );
+
+          generateMonthlyBundlePDF(report, weeklyReports, machineInfo.location);
+      } else {
           generateReportPDF(report, machineInfo.location, true);
       }
   };
@@ -387,7 +405,7 @@ export const CondoDashboard: React.FC = () => {
       {/* 4 CHART GRID (Dashboard Visualizations) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <QualityChart 
-            title="Sólidos Disueltos Totales (TDS)" icon={<Activity className="mr-2 text-teal-500 h-4 w-4" />}
+            title="Pureza (TDS)" icon={<Activity className="mr-2 text-teal-500 h-4 w-4" />}
             data={chartData} dataKey="tds" color="#d946ef" unit="ppm" min={tdsDef?.min} max={tdsDef?.max} isLatest={timeRange === 'latest'}
             onExpand={() => setExpandedChart({ title: "TDS (Sólidos Disueltos Totales)", icon: <Activity className="text-white h-5 w-5"/>, dataKey: "tds", color: "#d946ef", unit: "ppm", min: tdsDef?.min, max: tdsDef?.max })}
         />
@@ -499,9 +517,9 @@ export const CondoDashboard: React.FC = () => {
                                 {format(new Date(rep.createdAt), 'dd MMM yyyy')}
                             </p>
                             <div className="flex items-center gap-2">
-                                <p className="text-xs text-slate-500">
-                                    {rep.type === 'weekly' ? 'Mantenimiento Semanal' : 
-                                    rep.type === 'monthly' ? 'Análisis Mensual' : 'Reporte Especial'}
+                                <p className="text-xs text-slate-500 capitalize">
+                                    {rep.type === 'weekly' ? 'Semanal' : 
+                                    rep.type === 'monthly' ? 'Mensual' : 'Especial'}
                                 </p>
                                 {rep.type === 'special' && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 font-bold border border-amber-200">
@@ -517,12 +535,17 @@ export const CondoDashboard: React.FC = () => {
                             >
                                 <Eye className="h-5 w-5" />
                             </button>
+                            {/* DOWNLOAD BUTTON UPDATED WITH BUNDLE LOGIC */}
                             <button 
                                 onClick={(e) => handleDownloadReport(e, rep)}
-                                className="text-slate-400 hover:text-indigo-600 transition p-2 rounded-full hover:bg-indigo-50"
-                                title="Descargar PDF"
+                                className={`transition p-2 rounded-full ${
+                                    rep.type === 'monthly' 
+                                    ? 'text-teal-600 hover:bg-teal-50 hover:text-teal-800' 
+                                    : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+                                }`}
+                                title={rep.type === 'monthly' ? "Descargar Reporte Mensual + Semanales" : "Descargar PDF"}
                             >
-                                <Download className="h-5 w-5" />
+                                {rep.type === 'monthly' ? <FileStack className="h-5 w-5" /> : <Download className="h-5 w-5" />}
                             </button>
                         </div>
                     </div>

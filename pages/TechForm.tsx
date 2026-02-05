@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/db';
 import { ChecklistValue, Report, Role } from '../types';
@@ -24,10 +24,12 @@ export const TechForm: React.FC = () => {
   // State for success modal
   const [submittedReport, setSubmittedReport] = useState<Report | null>(null);
 
-  // Determine which checklist to use
-  const checklist = formType === 'weekly' ? WEEKLY_CHECKLIST : 
-                    formType === 'monthly' ? MONTHLY_CHECKLIST : 
-                    SPECIAL_CHECKLIST;
+  // LOGIC CHANGE: Monthly Report now includes ALL Weekly items + Monthly items
+  const checklist = useMemo(() => {
+      if (formType === 'weekly') return WEEKLY_CHECKLIST;
+      if (formType === 'monthly') return [...WEEKLY_CHECKLIST, ...MONTHLY_CHECKLIST];
+      return SPECIAL_CHECKLIST;
+  }, [formType]);
 
   useEffect(() => {
     const loadReport = async () => {

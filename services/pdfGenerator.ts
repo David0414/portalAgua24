@@ -1,21 +1,31 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Report, ReportStatus, ChecklistValue } from '../types';
+import { Report, ReportStatus } from '../types';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-export const generateReportPDF = (report: Report, locationName: string, isPublicVersion: boolean = false) => {
-  const doc = new jsPDF();
+// Función interna para dibujar un reporte en una página (o páginas) del documento actual
+const addReportToDoc = (doc: jsPDF, report: Report, locationName: string) => {
+  // --- DEFINICIÓN DE LISTA SEGÚN TIPO ---
+  // Si es mensual, combina checklist semanal + mensual (lógica implementada previamente)
   const checklist = report.type === 'weekly' ? WEEKLY_CHECKLIST : 
-                    report.type === 'monthly' ? MONTHLY_CHECKLIST :
+                    report.type === 'monthly' ? [...WEEKLY_CHECKLIST, ...MONTHLY_CHECKLIST] :
                     SPECIAL_CHECKLIST;
                     
   const dateStr = format(new Date(report.createdAt), "dd 'de' MMMM, yyyy - HH:mm", { locale: es });
+  
+  // Título dinámico
+  let reportTitle = "REPORTE TÉCNICO DE CALIDAD";
+  if (report.type === 'monthly') reportTitle = "REPORTE MENSUAL INTEGRAL";
+  if (report.type === 'special') reportTitle = "BITÁCORA DE EVENTOS ESPECIALES";
 
   // --- 1. HEADER ---
   // Background Color varies by report type
-  const headerColor = report.type === 'special' ? [217, 119, 6] : [15, 23, 42]; // Amber for special, Slate for others
+  let headerColor = [15, 23, 42]; // Slate (Default Weekly)
+  if (report.type === 'monthly') headerColor = [79, 70, 229]; // Indigo (Monthly)
+  if (report.type === 'special') headerColor = [217, 119, 6]; // Amber (Special)
+
   doc.setFillColor(headerColor[0], headerColor[1], headerColor[2]); 
   doc.rect(0, 0, 210, 40, 'F');
 
@@ -40,8 +50,8 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
   doc.text("Agua/24", 45, 18);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(255, 255, 255); // White for better contrast on colored headers
-  doc.text(report.type === 'special' ? "BITÁCORA DE EVENTOS ESPECIALES" : "REPORTE TÉCNICO DE CALIDAD", 45, 24);
+  doc.setTextColor(255, 255, 255); 
+  doc.text(reportTitle, 45, 24);
 
   const isApproved = report.status === ReportStatus.APPROVED;
   doc.setFillColor(isApproved ? 34 : 220, isApproved ? 197 : 38, isApproved ? 94 : 38); 
@@ -88,7 +98,7 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
       // Box for text
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(203, 213, 225);
-      doc.rect(15, 75, 180, 80); // Fixed height box for simplicity, or dynamic calculation
+      doc.rect(15, 75, 180, 80); 
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -115,10 +125,12 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
       }
       
   } else {
-      // --- STANDARD REPORT LAYOUT (Weekly/Monthly) ---
+      // --- STANDARD & MONTHLY REPORT LAYOUT ---
 
-      // --- 2. GRÁFICOS DE CALIDAD (GAUGES/BARRAS) - Solo Weekly ---
-      if (report.type === 'weekly') {
+      // --- GRÁFICOS DE CALIDAD (GAUGES) - Solo si tiene datos químicos (Semanal o Mensual hibrido) ---
+      const hasChemData = report.data.some(d => ['w_ph', 'w_tds'].includes(d.itemId));
+
+      if (hasChemData) {
           doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(15, 23, 42);
@@ -140,7 +152,6 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
           const tds = getVal('w_tds');
           const hard = getVal('w_hardness');
 
-          // Función para dibujar una barra de progreso estilo "Gauge"
           const drawGauge = (label: string, value: number, unit: string, x: number, y: number, min: number | undefined, max: number | undefined, totalScale: number) => {
               const width = 80;
               const height = 6;
@@ -154,25 +165,21 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
               doc.setTextColor(15, 23, 42);
               doc.text(`${value} ${unit}`, x + width, y - 2, { align: 'right' });
 
-              // Fondo Barra (Gris Claro)
               doc.setFillColor(226, 232, 240);
               doc.roundedRect(x, y, width, height, 2, 2, 'F');
 
-              // Calcular porcentaje de llenado visual
               let pct = value / totalScale;
               if (pct > 1) pct = 1;
               if (pct < 0) pct = 0;
               
-              // Lógica de Color (Verde = OK, Rojo = Mal)
-              let color = [34, 197, 94]; // Green Default
-              if (min !== undefined && value < min) color = [239, 68, 68]; // Red (Low)
-              if (max !== undefined && value > max) color = [239, 68, 68]; // Red (High)
+              let color = [34, 197, 94]; 
+              if (min !== undefined && value < min) color = [239, 68, 68];
+              if (max !== undefined && value > max) color = [239, 68, 68];
 
               doc.setFillColor(color[0], color[1], color[2]);
               doc.roundedRect(x, y, width * pct, height, 2, 2, 'F');
 
-              // --- DIBUJAR LÍNEAS DE LÍMITE (REFERENCIAS) ---
-              doc.setDrawColor(100, 116, 139); // Gris oscuro
+              doc.setDrawColor(100, 116, 139);
               doc.setLineWidth(0.3);
 
               if (min !== undefined) {
@@ -192,27 +199,16 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
               }
           };
 
-          // Fila 1: pH y TDS
-          // Escala pH: 14 (Total)
           drawGauge("pH (Potencial de Hidrógeno)", ph, "pH", 15, currentY + 5, 6.5, 8.5, 14);
-          // Escala TDS: 400 (Dando margen al maximo de 300)
           drawGauge("TDS (Sólidos Disueltos Totales)", tds, "ppm", 110, currentY + 5, 50, 300, 400); 
-          
-          // Fila 2: Cloro y Dureza
-          // Escala Cloro: 3
           drawGauge("Cloro (Cloro Libre)", cl, "mg/L", 15, currentY + 25, 0.2, 1.5, 3);
-          // Escala Dureza: 300
           drawGauge("Dureza (Dureza Total)", hard, "mg/L", 110, currentY + 25, undefined, 200, 300);
 
-          currentY += 45; // Espacio después de las gráficas
+          currentY += 45; 
       }
 
       // --- 3. TABLA DE DATOS ---
-      
-      // FILTRO ESTRICTO:
       // Excluir SOLAMENTE Ventas Totales (w13) y Resetear Ventas (w_reset_sales)
-      // Mantener Acomodo de Hopper (w14) y Cambio Ingresado (w_exchange) aunque sean 'private'.
-      
       const excludedIds = ['w13', 'w_reset_sales']; 
       
       const visibleChecklist = checklist.filter(item => !excludedIds.includes(item.id));
@@ -275,8 +271,14 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
         }
       });
   }
+};
 
-  // --- FOOTER GLOBAL ---
+// --- FUNCIÓN PÚBLICA: Generar PDF Individual ---
+export const generateReportPDF = (report: Report, locationName: string, isPublicVersion: boolean = false) => {
+  const doc = new jsPDF();
+  addReportToDoc(doc, report, locationName);
+  
+  // Footer
   const pageCount = (doc as any).internal.getNumberOfPages();
   for(let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -286,4 +288,33 @@ export const generateReportPDF = (report: Report, locationName: string, isPublic
   }
 
   doc.save(`Reporte_${report.type}_${report.machineId}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+};
+
+// --- FUNCIÓN PÚBLICA: Generar PDF Mensual con Anexos Semanales (BUNDLE) ---
+export const generateMonthlyBundlePDF = (monthlyReport: Report, weeklyReports: Report[], locationName: string) => {
+  const doc = new jsPDF();
+
+  // 1. Añadir el Reporte Mensual (Portada principal)
+  addReportToDoc(doc, monthlyReport, locationName);
+
+  // 2. Iterar y añadir los reportes semanales
+  // Ordenar de más antiguo a más reciente para cronología lógica
+  const sortedWeeklies = [...weeklyReports].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  sortedWeeklies.forEach((weeklyReport) => {
+      doc.addPage();
+      addReportToDoc(doc, weeklyReport, locationName);
+  });
+
+  // Footer Global (re-calculado para todo el documento unido)
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for(let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Reporte Integral Mensual - Pág ${i} de ${pageCount}`, 105, 290, { align: 'center' });
+  }
+
+  const filename = `Mensual_Integral_${monthlyReport.machineId}_${format(new Date(monthlyReport.createdAt), 'MM_yyyy')}.pdf`;
+  doc.save(filename);
 };

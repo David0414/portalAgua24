@@ -3,10 +3,11 @@ import { api } from '../services/db';
 import { Report, ReportStatus, Machine, User } from '../types';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ReferenceLine, Brush } from 'recharts';
-import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, isWithinInterval, subWeeks, subMonths, getWeek, isAfter } from 'date-fns';
+import { Clock, Settings, Users, Activity, DollarSign, RefreshCw, Loader2, TrendingUp, Filter, Droplets, TestTube, Shield, AlertTriangle, ArrowRight, Wallet, Maximize2, X, ClipboardCheck, Calendar, FileText, AlertOctagon, Download, FileStack } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, isWithinInterval, subWeeks, subMonths, getWeek, isAfter, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PRODUCTION_URL } from '../services/whatsapp';
+import { generateReportPDF, generateMonthlyBundlePDF } from '../services/pdfGenerator';
 
 type TimeRange = 'latest' | '1m' | '3m' | '6m';
 
@@ -100,6 +101,12 @@ export const OwnerDashboard: React.FC = () => {
       };
   }, [reports]);
 
+  // --- FILTER REPORTS FOR LIST VIEW (Based on Machine) ---
+  const filteredReportsForList = useMemo(() => {
+      if (!selectedMachineId) return [];
+      return reports.filter(r => r.machineId === selectedMachineId);
+  }, [reports, selectedMachineId]);
+
   // --- TRENDS & SALES CALCULATION (Per Machine) ---
   const trendData = useMemo(() => {
       if (!selectedMachineId) return [];
@@ -149,7 +156,7 @@ export const OwnerDashboard: React.FC = () => {
 
   const COLORS = ['#fbbf24', '#22c55e', '#ef4444'];
   const hasPieData = pieData.some(d => d.value > 0);
-  const visibleReports = reports.slice(0, 50);
+  const visibleReports = filteredReportsForList.slice(0, 50);
 
   // Helper definitions for Charts (Added Sales)
   const chartConfig = [
@@ -158,6 +165,35 @@ export const OwnerDashboard: React.FC = () => {
       { key: 'ph', name: 'pH (Potencial de Hidrógeno)', color: '#6366f1', icon: <TestTube className="w-4 h-4 mr-1 text-indigo-500" />, min: 6.5, max: 8.5 },
       { key: 'cl', name: 'Cloro (Cloro Libre)', color: '#06b6d4', icon: <Droplets className="w-4 h-4 mr-1 text-cyan-500" />, min: 0.2, max: 1.5 },
   ];
+
+  // --- PDF DOWNLOAD HANDLER WITH BUNDLE LOGIC ---
+  const handleDownloadReport = (e: React.MouseEvent, report: Report) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const machine = machines.find(m => m.id === report.machineId);
+      const locName = machine ? machine.location : report.machineId;
+
+      if (report.type === 'monthly') {
+          // BUNDLE LOGIC: Find weekly reports within that month
+          const monthDate = new Date(report.createdAt);
+          const start = startOfMonth(monthDate);
+          const end = endOfMonth(monthDate);
+
+          const weeklyReports = reports.filter(r => 
+             r.machineId === report.machineId &&
+             r.type === 'weekly' &&
+             r.status === ReportStatus.APPROVED &&
+             isWithinInterval(new Date(r.createdAt), { start, end })
+          );
+
+          generateMonthlyBundlePDF(report, weeklyReports, locName);
+
+      } else {
+          // Standard Single PDF
+          generateReportPDF(report, locName, false);
+      }
+  };
 
   if (loading && !refreshing && reports.length === 0) {
       return (
@@ -234,18 +270,14 @@ export const OwnerDashboard: React.FC = () => {
           </div>
       )}
 
-      {/* --- QUICK STATS CARDS (Updated Grid to include Pending Card) --- */}
+      {/* --- QUICK STATS CARDS --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          {/* Card 1: Earnings */}
           <div className="bg-green-600 text-white p-6 rounded-xl shadow-lg relative overflow-hidden lg:col-span-1">
               <DollarSign className="absolute -right-4 -bottom-4 h-32 w-32 text-white/10" />
               <p className="text-green-100 text-sm font-medium">Ingreso Acumulado</p>
               <p className="text-3xl font-bold mt-2">${totalEarnings.toLocaleString()}</p>
               <p className="text-xs text-green-200 mt-4 opacity-80">Total Histórico</p>
           </div>
-
-          {/* Card 2: Pending Reports (PERMANENT) */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between relative overflow-hidden group hover:shadow-md transition">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
                   <ClipboardCheck className={`h-16 w-16 ${pendingReports.length > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
@@ -260,8 +292,6 @@ export const OwnerDashboard: React.FC = () => {
                   {pendingReports.length > 0 ? 'Requiere Atención' : 'Todo al día'}
               </div>
           </div>
-          
-          {/* Card 3: Machines */}
           <div 
               onClick={() => navigate('/owner/machines')}
               className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between cursor-pointer hover:shadow-md transition group"
@@ -277,8 +307,6 @@ export const OwnerDashboard: React.FC = () => {
               </div>
               <p className="text-xs text-slate-400 mt-4">Inventario Activo</p>
           </div>
-
-          {/* Card 4: Users */}
           <div 
               onClick={() => navigate('/owner/users')}
               className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between cursor-pointer hover:shadow-md transition group"
@@ -296,12 +324,13 @@ export const OwnerDashboard: React.FC = () => {
           </div>
       </div>
 
-      {/* --- SECTION 2: MACHINE ANALYSIS (Quality & Sales) --- */}
+      {/* --- SECTION 2: MACHINE ANALYSIS & REPORT SELECTOR --- */}
       <div className="space-y-4">
+           {/* GLOBAL MACHINE SELECTOR BAR */}
            <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center">
-                    <Activity className="mr-2 h-5 w-5 text-brand-600" /> 
-                    Análisis por Máquina
+                    <Filter className="mr-2 h-5 w-5 text-indigo-600" /> 
+                    Filtrar Información
                 </h2>
                 
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -345,10 +374,9 @@ export const OwnerDashboard: React.FC = () => {
                 </div>
            </div>
             
-           {/* GRAPHS GRID (Includes Sales Graph now) */}
+           {/* GRAPHS GRID */}
            {trendData.length > 0 ? (
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {/* Special Highlight for Sales Chart first */}
                    {chartConfig.map((cfg) => (
                        <div key={cfg.key} className={`bg-white p-5 rounded-xl shadow-sm border border-slate-100 ${cfg.key === 'sales' ? 'lg:col-span-2 border-green-100 bg-green-50/30' : ''}`}>
                            <div className="flex justify-between items-center mb-4">
@@ -356,13 +384,11 @@ export const OwnerDashboard: React.FC = () => {
                                    {cfg.icon} {cfg.name}
                                </div>
                                <div className="flex items-center gap-2">
-                                  {/* Show current value if Latest is selected */}
                                   {timeRange === 'latest' && trendData[0] && (
                                       <div className={`text-xl font-black`} style={{ color: cfg.color }}>
                                           {cfg.isCurrency ? '$' : ''}{trendData[0][cfg.key] ?? '--'}
                                       </div>
                                   )}
-                                  {/* EXPAND BUTTON */}
                                   <button 
                                       onClick={() => setExpandedChart({ ...cfg, data: trendData })}
                                       className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded transition"
@@ -372,10 +398,8 @@ export const OwnerDashboard: React.FC = () => {
                                   </button>
                                </div>
                            </div>
-                           
                            <div className="h-[200px]">
                                {timeRange === 'latest' ? (
-                                   // BAR CHART VISUALIZATION FOR SNAPSHOT (LATEST)
                                    <ResponsiveContainer width="100%" height="100%">
                                        <BarChart data={trendData} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
@@ -400,7 +424,6 @@ export const OwnerDashboard: React.FC = () => {
                                        </BarChart>
                                    </ResponsiveContainer>
                                ) : (
-                                   // LINE CHART FOR TRENDS
                                    <ResponsiveContainer width="100%" height="100%">
                                        <LineChart data={trendData}>
                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -439,44 +462,87 @@ export const OwnerDashboard: React.FC = () => {
 
       {/* Reports & Pie Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[400px]">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[500px]">
           <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-            <h2 className="font-semibold text-slate-800">Bitácora Reciente (Global)</h2>
+            <h2 className="font-semibold text-slate-800">Bitácora de Reportes</h2>
             <div className="flex space-x-2">
-                 <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border">Mostrando 50 de {reports.length}</span>
+                 <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border">
+                    {filteredReportsForList.length} Registros en {selectedMachineId}
+                 </span>
             </div>
           </div>
           <div className="divide-y divide-slate-100 overflow-y-auto flex-1">
-            {visibleReports.map(report => (
-              <div key={report.id} className="p-4 hover:bg-slate-50 transition flex items-center justify-between group">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-slate-700">{report.machineId}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                      report.status === ReportStatus.PENDING ? 'bg-amber-100 text-amber-700' :
-                      report.status === ReportStatus.APPROVED ? 'bg-green-100 text-green-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {report.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                     {format(new Date(report.createdAt), 'dd/MM/yy HH:mm')} • {report.technicianName}
-                  </p>
+            {visibleReports.length > 0 ? (
+                visibleReports.map(report => (
+                <div key={report.id} className="p-4 hover:bg-slate-50 transition flex items-center justify-between group">
+                    <div className="flex items-start gap-3">
+                        {/* DISTINCTIVE ICON BASED ON TYPE */}
+                        <div className={`p-2 rounded-lg mt-1 ${
+                            report.type === 'monthly' ? 'bg-indigo-100 text-indigo-600' : 
+                            report.type === 'special' ? 'bg-amber-100 text-amber-600' : 
+                            'bg-slate-100 text-slate-500'
+                        }`}>
+                            {report.type === 'monthly' ? <FileText className="h-5 w-5" /> :
+                             report.type === 'special' ? <AlertOctagon className="h-5 w-5" /> :
+                             <Calendar className="h-5 w-5" />}
+                        </div>
+
+                        <div>
+                            <div className="flex items-center space-x-2">
+                                <span className="font-bold text-slate-700 capitalize">
+                                    {report.type === 'weekly' ? 'Semanal' : 
+                                     report.type === 'monthly' ? 'Mensual' : 'Especial'}
+                                </span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                    report.status === ReportStatus.PENDING ? 'bg-amber-100 text-amber-700' :
+                                    report.status === ReportStatus.APPROVED ? 'bg-green-100 text-green-700' :
+                                    'bg-red-100 text-red-700'
+                                }`}>
+                                    {report.status}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                {format(new Date(report.createdAt), 'dd MMM yyyy, HH:mm', {locale: es})}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                                Tec: {report.technicianName}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                        {/* PDF DOWNLOAD BUTTON (Distinctive for Monthly) */}
+                        <button 
+                            onClick={(e) => handleDownloadReport(e, report)}
+                            className={`p-2 rounded border transition ${
+                                report.type === 'monthly' 
+                                ? 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100' 
+                                : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                            }`}
+                            title={report.type === 'monthly' ? 'Descargar Paquete Mensual (4 Semanas + Mes)' : 'Descargar PDF'}
+                        >
+                            {report.type === 'monthly' ? <FileStack className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                        </button>
+                        
+                        <Link 
+                            to={`/owner/review/${report.id}`}
+                            className="px-3 py-1.5 text-xs font-bold rounded border bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300 flex items-center"
+                        >
+                            Ver
+                        </Link>
+                    </div>
                 </div>
-                <Link 
-                  to={`/owner/review/${report.id}`}
-                  className="px-3 py-1.5 text-xs font-bold rounded border bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-300"
-                >
-                  Ver
-                </Link>
-              </div>
-            ))}
+                ))
+            ) : (
+                <div className="p-8 text-center text-slate-400 text-sm">
+                    No hay reportes para la máquina seleccionada.
+                </div>
+            )}
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col">
-           <h2 className="font-semibold text-slate-800 mb-6">Estado de Cumplimiento</h2>
+           <h2 className="font-semibold text-slate-800 mb-6">Estado de Cumplimiento Global</h2>
            <div className="flex-1 min-h-[250px] flex items-center justify-center">
              {hasPieData ? (
                  <ResponsiveContainer width="100%" height="100%">
@@ -552,14 +618,13 @@ export const OwnerDashboard: React.FC = () => {
                                 activeDot={{ r: 8 }}
                                 dot={{ r: 4, strokeWidth: 2, stroke: expandedChart.color, fill: 'white' }}
                             />
-                            {/* BRUSH COMPONENT: Adds the Slider at the bottom */}
                             {timeRange !== 'latest' && (
                                 <Brush 
                                     dataKey="date" 
                                     height={40} 
                                     stroke="#94a3b8" 
                                     fill="#f8fafc"
-                                    tickFormatter={() => ''} // Hide ticks inside brush for cleaner look
+                                    tickFormatter={() => ''} 
                                 />
                             )}
                         </LineChart>
