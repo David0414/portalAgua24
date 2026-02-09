@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, User, Menu, QrCode, Shield } from 'lucide-react';
+import { InstallPWA } from './InstallPWA';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -42,6 +43,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+      {/* Install Prompt Component */}
+      <InstallPWA />
+
       {/* Dynamic Navbar */}
       <nav className={`${navColor} text-white shadow-lg sticky top-0 z-50 transition-colors duration-500`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
