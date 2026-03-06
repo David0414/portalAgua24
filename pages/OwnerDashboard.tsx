@@ -8,6 +8,7 @@ import { format, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
+import { openOrDownloadFile } from '../services/fileDownload';
 
 type TimeRange = 'latest' | '1m' | '3m' | '6m';
 
@@ -216,12 +217,7 @@ export const OwnerDashboard: React.FC = () => {
 
       const uploadedPdfUrl = getUploadedPdfUrl(report);
       if (uploadedPdfUrl) {
-          const a = document.createElement('a');
-          a.href = uploadedPdfUrl;
-          a.download = getUploadedPdfName(report);
-          a.target = '_blank';
-          a.rel = 'noreferrer';
-          a.click();
+          openOrDownloadFile(uploadedPdfUrl, getUploadedPdfName(report));
           return;
       }
 

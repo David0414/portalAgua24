@@ -8,6 +8,7 @@ import { es } from 'date-fns/locale';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar, Brush } from 'recharts';
 import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../constants';
 import { generateReportPDF } from '../services/pdfGenerator';
+import { openOrDownloadFile } from '../services/fileDownload';
 
 type TimeRange = 'latest' | '1m' | '3m' | '6m';
 
@@ -306,12 +307,7 @@ export const CondoDashboard: React.FC = () => {
       e.stopPropagation();
       const uploadedPdfUrl = getUploadedPdfUrl(report);
       if (uploadedPdfUrl) {
-          const a = document.createElement('a');
-          a.href = uploadedPdfUrl;
-          a.download = getUploadedPdfName(report);
-          a.target = '_blank';
-          a.rel = 'noreferrer';
-          a.click();
+          openOrDownloadFile(uploadedPdfUrl, getUploadedPdfName(report));
           return;
       }
       if (!machineInfo) return;
@@ -697,17 +693,17 @@ export const CondoDashboard: React.FC = () => {
                             {getUploadedPdfUrl(selectedReport) && (
                                 <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
                                     <h5 className="text-xs font-bold text-indigo-700 uppercase mb-2">Archivo PDF adjunto</h5>
-                                    <a
-                                        href={getUploadedPdfUrl(selectedReport)}
-                                        download={getUploadedPdfName(selectedReport)}
-                                        target="_blank"
-                                        rel="noreferrer"
+                                    <button
+                                        type="button"
                                         className="inline-flex items-center text-sm font-bold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition"
-                                        onClick={(e) => e.stopPropagation()}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openOrDownloadFile(getUploadedPdfUrl(selectedReport), getUploadedPdfName(selectedReport));
+                                        }}
                                     >
                                         <Download className="h-4 w-4 mr-2" />
                                         Abrir / Descargar PDF
-                                    </a>
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -777,12 +773,7 @@ export const CondoDashboard: React.FC = () => {
                          onClick={() => {
                              const uploadedPdfUrl = getUploadedPdfUrl(selectedReport);
                              if (uploadedPdfUrl) {
-                                 const a = document.createElement('a');
-                                 a.href = uploadedPdfUrl;
-                                 a.download = getUploadedPdfName(selectedReport);
-                                 a.target = '_blank';
-                                 a.rel = 'noreferrer';
-                                 a.click();
+                                 openOrDownloadFile(uploadedPdfUrl, getUploadedPdfName(selectedReport));
                                  return;
                              }
                              if(machineInfo) generateReportPDF(selectedReport, machineInfo.location, true);

@@ -6,6 +6,7 @@ import { WEEKLY_CHECKLIST, MONTHLY_CHECKLIST, SPECIAL_CHECKLIST } from '../const
 import { Check, X, ArrowLeft, MessageSquare, MessageCircle, ExternalLink, Loader2, Trash2, AlertTriangle, FileText, Share2, Building, Download, Paperclip, ZoomIn, Eye, EyeOff, ChevronLeft, ChevronRight, Copy, Users, Phone, UserCheck, Send, FileCheck } from 'lucide-react';
 import { sendWhatsAppNotification, generateTechEditLink, generateCondoReportMessage, PRODUCTION_URL } from '../services/whatsapp';
 import { generateReportPDF } from '../services/pdfGenerator';
+import { openOrDownloadFile } from '../services/fileDownload';
 import { format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -111,12 +112,7 @@ export const AdminReview: React.FC = () => {
   // PDF DOWNLOAD HANDLER
   const handleDownloadPDF = () => {
       if (uploadedPdfUrl) {
-          const a = document.createElement('a');
-          a.href = uploadedPdfUrl;
-          a.download = uploadedPdfName;
-          a.target = '_blank';
-          a.rel = 'noreferrer';
-          a.click();
+          openOrDownloadFile(uploadedPdfUrl, uploadedPdfName);
           return;
       }
       if (report && machineInfo) {
@@ -138,12 +134,7 @@ export const AdminReview: React.FC = () => {
       
       // 2. Auto-Download PDF for the Owner (Always download for owner)
       if (uploadedPdfUrl) {
-          const a = document.createElement('a');
-          a.href = uploadedPdfUrl;
-          a.download = uploadedPdfName;
-          a.target = '_blank';
-          a.rel = 'noreferrer';
-          a.click();
+          openOrDownloadFile(uploadedPdfUrl, uploadedPdfName);
       } else if (machineInfo) {
           const approvedReport = { ...report, status: ReportStatus.APPROVED };
           generateReportPDF(approvedReport, machineInfo.location, false);
@@ -472,16 +463,14 @@ export const AdminReview: React.FC = () => {
                     <div className="mt-2 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
                         <h4 className="text-sm font-bold text-indigo-800 mb-2">Archivo PDF adjunto</h4>
                         <p className="text-xs text-indigo-700 mb-3">{uploadedPdfName}</p>
-                        <a
-                            href={uploadedPdfUrl}
-                            download={uploadedPdfName}
-                            target="_blank"
-                            rel="noreferrer"
+                        <button
+                            type="button"
+                            onClick={() => openOrDownloadFile(uploadedPdfUrl, uploadedPdfName)}
                             className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition"
                         >
                             <Download className="h-4 w-4 mr-2" />
                             Abrir / Descargar PDF
-                        </a>
+                        </button>
                     </div>
                  )}
              </div>
