@@ -214,11 +214,36 @@ export const OwnerDashboard: React.FC = () => {
       e.preventDefault();
       e.stopPropagation();
 
+      const uploadedPdfUrl = getUploadedPdfUrl(report);
+      if (uploadedPdfUrl) {
+          const a = document.createElement('a');
+          a.href = uploadedPdfUrl;
+          a.download = getUploadedPdfName(report);
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.click();
+          return;
+      }
+
       const machine = machines.find(m => m.id === report.machineId);
       const locName = machine ? machine.location : report.machineId;
 
       // Generar PDF individual (Sin Bundle)
       generateReportPDF(report, locName, false);
+  };
+
+  const getUploadedPdfItem = (report: Report) => {
+      return report.data.find(item => item.itemId === 's_pdf' && typeof item.value === 'string');
+  };
+
+  const getUploadedPdfUrl = (report: Report) => {
+      const item = getUploadedPdfItem(report);
+      return item && typeof item.value === 'string' ? item.value : '';
+  };
+
+  const getUploadedPdfName = (report: Report) => {
+      const item = getUploadedPdfItem(report);
+      return item?.comment || 'reporte.pdf';
   };
 
   if (loading && !refreshing && reports.length === 0) {
@@ -582,7 +607,7 @@ export const OwnerDashboard: React.FC = () => {
                             <div className="flex items-center space-x-2">
                                 <span className="font-bold text-slate-700 capitalize">
                                     {report.type === 'weekly' ? 'Semanal' : 
-                                     report.type === 'monthly' ? 'Mensual' : 'Especial'}
+                                     report.type === 'monthly' ? 'Mensual' : (getUploadedPdfUrl(report) ? 'PDF' : 'Especial')}
                                 </span>
                                 
                                 {report.type === 'special' && (
@@ -613,6 +638,19 @@ export const OwnerDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex gap-2">
+                        {getUploadedPdfUrl(report) && (
+                            <a
+                                href={getUploadedPdfUrl(report)}
+                                download={getUploadedPdfName(report)}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="px-2 py-1.5 text-[11px] font-bold rounded border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                                title="Abrir PDF adjunto"
+                            >
+                                PDF
+                            </a>
+                        )}
                         {/* PDF DOWNLOAD BUTTON (SINGLE PDF ALWAYS) */}
                         <button 
                             onClick={(e) => handleDownloadReport(e, report)}

@@ -178,6 +178,20 @@ export const CondoDashboard: React.FC = () => {
       return new Date(`${dateStr}T00:00:00`);
   };
 
+  const getUploadedPdfItem = (report: Report) => {
+      return report.data.find(item => item.itemId === 's_pdf' && typeof item.value === 'string');
+  };
+
+  const getUploadedPdfUrl = (report: Report) => {
+      const item = getUploadedPdfItem(report);
+      return item && typeof item.value === 'string' ? item.value : '';
+  };
+
+  const getUploadedPdfName = (report: Report) => {
+      const item = getUploadedPdfItem(report);
+      return item?.comment || 'reporte.pdf';
+  };
+
   useEffect(() => {
     const fetch = async () => {
       const dbUsers = await api.getUsers();
@@ -290,6 +304,16 @@ export const CondoDashboard: React.FC = () => {
   // --- PDF DOWNLOAD HANDLER (SINGLE FILE ALWAYS) ---
   const handleDownloadReport = (e: React.MouseEvent, report: Report) => {
       e.stopPropagation();
+      const uploadedPdfUrl = getUploadedPdfUrl(report);
+      if (uploadedPdfUrl) {
+          const a = document.createElement('a');
+          a.href = uploadedPdfUrl;
+          a.download = getUploadedPdfName(report);
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.click();
+          return;
+      }
       if (!machineInfo) return;
       
       // Generar PDF individual (Sin Bundle)
@@ -416,6 +440,11 @@ export const CondoDashboard: React.FC = () => {
                               <p className="text-sm text-slate-700 font-medium line-clamp-1">
                                   {report.data[0]?.value as string || 'Detalles del reporte...'}
                               </p>
+                              {getUploadedPdfUrl(report) && (
+                                  <span className="inline-flex mt-2 text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
+                                      REPORTE PDF
+                                  </span>
+                              )}
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-auto">
                               <button 
@@ -587,7 +616,7 @@ export const CondoDashboard: React.FC = () => {
                                 </p>
                                 {rep.type === 'special' && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 font-bold border border-amber-200">
-                                        ESPECIAL
+                                        {getUploadedPdfUrl(rep) ? 'PDF' : 'ESPECIAL'}
                                     </span>
                                 )}
                             </div>
@@ -626,7 +655,7 @@ export const CondoDashboard: React.FC = () => {
                  <div className={`p-4 border-b border-slate-200 flex justify-between items-center ${selectedReport.type === 'special' ? 'bg-amber-50' : 'bg-slate-50'}`}>
                      <div>
                          <h3 className={`font-bold text-lg ${selectedReport.type === 'special' ? 'text-amber-800' : 'text-slate-800'}`}>
-                             {selectedReport.type === 'special' ? 'Detalle de Evento Especial' : 'Detalles de Reporte'}
+                             {selectedReport.type === 'special' ? (getUploadedPdfUrl(selectedReport) ? 'Detalle de Reporte PDF' : 'Detalle de Evento Especial') : 'Detalles de Reporte'}
                          </h3>
                          <p className="text-xs text-slate-500">
                              {format(new Date(selectedReport.createdAt), "dd 'de' MMMM, yyyy - HH:mm", { locale: es })}
@@ -665,6 +694,22 @@ export const CondoDashboard: React.FC = () => {
                                     )}
                                 </div>
                             ))}
+                            {getUploadedPdfUrl(selectedReport) && (
+                                <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                    <h5 className="text-xs font-bold text-indigo-700 uppercase mb-2">Archivo PDF adjunto</h5>
+                                    <a
+                                        href={getUploadedPdfUrl(selectedReport)}
+                                        download={getUploadedPdfName(selectedReport)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center text-sm font-bold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Abrir / Descargar PDF
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <table className="w-full text-sm text-left">
@@ -730,6 +775,16 @@ export const CondoDashboard: React.FC = () => {
                  <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
                      <button 
                          onClick={() => {
+                             const uploadedPdfUrl = getUploadedPdfUrl(selectedReport);
+                             if (uploadedPdfUrl) {
+                                 const a = document.createElement('a');
+                                 a.href = uploadedPdfUrl;
+                                 a.download = getUploadedPdfName(selectedReport);
+                                 a.target = '_blank';
+                                 a.rel = 'noreferrer';
+                                 a.click();
+                                 return;
+                             }
                              if(machineInfo) generateReportPDF(selectedReport, machineInfo.location, true);
                          }}
                          className="flex items-center space-x-2 text-indigo-600 font-bold text-sm hover:underline"

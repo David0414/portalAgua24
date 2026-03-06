@@ -110,6 +110,15 @@ export const AdminReview: React.FC = () => {
 
   // PDF DOWNLOAD HANDLER
   const handleDownloadPDF = () => {
+      if (uploadedPdfUrl) {
+          const a = document.createElement('a');
+          a.href = uploadedPdfUrl;
+          a.download = uploadedPdfName;
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.click();
+          return;
+      }
       if (report && machineInfo) {
           // No history passed
           generateReportPDF(report, machineInfo.location, false);
@@ -128,7 +137,14 @@ export const AdminReview: React.FC = () => {
       await api.reviewReport(report.id, ReportStatus.APPROVED, undefined, finalVisibility);
       
       // 2. Auto-Download PDF for the Owner (Always download for owner)
-      if (machineInfo) {
+      if (uploadedPdfUrl) {
+          const a = document.createElement('a');
+          a.href = uploadedPdfUrl;
+          a.download = uploadedPdfName;
+          a.target = '_blank';
+          a.rel = 'noreferrer';
+          a.click();
+      } else if (machineInfo) {
           const approvedReport = { ...report, status: ReportStatus.APPROVED };
           generateReportPDF(approvedReport, machineInfo.location, false);
       }
