@@ -4,7 +4,7 @@ import { api } from '../services/db';
 import { Machine, User, Role } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { sendWhatsAppNotification, generateStartVisitMessage } from '../services/whatsapp';
-import { MapPin, MessageCircle, ArrowRight, UserCheck, ShieldCheck, Loader2, Lock } from 'lucide-react';
+import { MapPin, MessageCircle, ArrowRight, UserCheck, ShieldCheck, Loader2, Lock, FileUp } from 'lucide-react';
 
 export const TechStartVisit: React.FC = () => {
   const { machineId } = useParams<{ machineId: string }>();
@@ -17,6 +17,7 @@ export const TechStartVisit: React.FC = () => {
   
   // State to track if notification has been sent
   const [hasNotified, setHasNotified] = useState(false);
+  const [selectedFlow, setSelectedFlow] = useState<'checklist' | 'upload'>('checklist');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,6 +53,10 @@ export const TechStartVisit: React.FC = () => {
 
   const handleContinue = () => {
     if (!hasNotified) return;
+    if (selectedFlow === 'upload') {
+      navigate(`/tech/upload/${machineId}`);
+      return;
+    }
     navigate(`/tech/form/${machineId}`);
   };
 
@@ -116,6 +121,34 @@ export const TechStartVisit: React.FC = () => {
 
       {/* Botón condicional */}
       <div className="pt-2">
+        <div className="bg-white border border-slate-200 rounded-xl p-2 mb-3">
+          <p className="text-xs text-slate-500 font-bold mb-2 px-1">2. Elegir tipo de reporte</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedFlow('checklist')}
+              className={`px-3 py-2 rounded-lg text-sm font-bold transition ${
+                selectedFlow === 'checklist'
+                  ? 'bg-brand-600 text-white shadow'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              Checklist
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedFlow('upload')}
+              className={`px-3 py-2 rounded-lg text-sm font-bold transition flex items-center justify-center ${
+                selectedFlow === 'upload'
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              <FileUp className="h-4 w-4 mr-1" />
+              Subir PDF
+            </button>
+          </div>
+        </div>
         <button
             onClick={handleContinue}
             disabled={!hasNotified}
@@ -127,7 +160,7 @@ export const TechStartVisit: React.FC = () => {
         >
             {hasNotified ? (
                 <>
-                    <span>2. Comenzar Checklist</span>
+                    <span>{selectedFlow === 'upload' ? '2. Subir Reporte PDF' : '2. Comenzar Checklist'}</span>
                     <ArrowRight className="h-5 w-5" />
                 </>
             ) : (

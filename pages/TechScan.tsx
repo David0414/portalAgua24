@@ -172,6 +172,13 @@ export const TechScan: React.FC = () => {
       }
   };
 
+  const getRejectedReportEditLink = (report: Report) => {
+      const hasUploadedPdf = report.data.some(item => item.itemId === 's_pdf');
+      return hasUploadedPdf
+        ? `/tech/upload/${report.machineId}?reportId=${report.id}`
+        : `/tech/form/${report.machineId}?reportId=${report.id}`;
+  };
+
   return (
     <div className="max-w-md mx-auto space-y-6 pb-20">
       
@@ -195,7 +202,7 @@ export const TechScan: React.FC = () => {
                   {rejectedReports.map(report => (
                       <Link 
                         key={report.id}
-                        to={`/tech/form/${report.machineId}?reportId=${report.id}`}
+                        to={getRejectedReportEditLink(report)}
                         className="p-4 flex items-center justify-between hover:bg-red-100 transition group"
                       >
                           <div>

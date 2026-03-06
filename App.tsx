@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { TechScan } from './pages/TechScan';
 import { TechStartVisit } from './pages/TechStartVisit';
 import { TechForm } from './pages/TechForm';
+import { TechUploadReport } from './pages/TechUploadReport';
 import { OwnerDashboard } from './pages/OwnerDashboard';
 import { OwnerMachines } from './pages/OwnerMachines';
 import { OwnerUsers } from './pages/OwnerUsers';
@@ -57,6 +58,9 @@ const AppRoutes: React.FC = () => {
         } />
         <Route path="/tech/form/:machineId" element={
             <ProtectedRoute roles={[Role.TECHNICIAN]}><TechForm /></ProtectedRoute>
+        } />
+        <Route path="/tech/upload/:machineId" element={
+            <ProtectedRoute roles={[Role.TECHNICIAN]}><TechUploadReport /></ProtectedRoute>
         } />
         
         {/* APP 2: Owner */}

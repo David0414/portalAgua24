@@ -98,6 +98,10 @@ export const AdminReview: React.FC = () => {
   const checklistDef = report.type === 'weekly' ? WEEKLY_CHECKLIST : 
                        report.type === 'monthly' ? [...WEEKLY_CHECKLIST, ...MONTHLY_CHECKLIST] :
                        SPECIAL_CHECKLIST;
+  const uploadedPdfItem = report.type === 'special' ? report.data.find(d => d.itemId === 's_pdf') : undefined;
+  const uploadedPdfUrl = typeof uploadedPdfItem?.value === 'string' ? uploadedPdfItem.value : '';
+  const uploadedPdfName = uploadedPdfItem?.comment || 'reporte.pdf';
+  const isUploadedPdfReport = Boolean(uploadedPdfUrl);
 
   const goBackToDashboard = () => {
       // Usamos navigate para navegación interna, mucho más rápido que reload
@@ -384,7 +388,7 @@ export const AdminReview: React.FC = () => {
            <div className="flex items-center space-x-3 mb-2">
               <FileText className={`h-6 w-6 ${report.type === 'special' ? 'text-amber-600' : 'text-brand-600'}`} />
               <h1 className="text-2xl font-bold text-slate-800 uppercase tracking-wide">
-                  {report.type === 'special' ? 'Reporte Especial' : 'Certificado de Servicio'}
+                  {report.type === 'special' ? (isUploadedPdfReport ? 'Reporte PDF' : 'Reporte Especial') : 'Certificado de Servicio'}
               </h1>
            </div>
            <p className="text-slate-500">Máquina: <span className="font-bold text-slate-900">{machineInfo?.location || report.machineId}</span></p>
@@ -447,6 +451,23 @@ export const AdminReview: React.FC = () => {
                          </div>
                      );
                  })}
+
+                 {isUploadedPdfReport && (
+                    <div className="mt-2 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                        <h4 className="text-sm font-bold text-indigo-800 mb-2">Archivo PDF adjunto</h4>
+                        <p className="text-xs text-indigo-700 mb-3">{uploadedPdfName}</p>
+                        <a
+                            href={uploadedPdfUrl}
+                            download={uploadedPdfName}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition"
+                        >
+                            <Download className="h-4 w-4 mr-2" />
+                            Abrir / Descargar PDF
+                        </a>
+                    </div>
+                 )}
              </div>
         ) : (
             /* STANDARD TABLE LAYOUT */
